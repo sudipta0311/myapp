@@ -635,7 +635,7 @@ private fun SlmSettingsCard(
                 if (isDownloading) {
                     Column {
                         LinearProgressIndicator(
-                            progress = { slmDownloadProgress },
+                            progress = slmDownloadProgress,
                             modifier = Modifier.fillMaxWidth(),
                         )
                         Spacer(modifier = Modifier.height(8.dp))
@@ -688,7 +688,7 @@ private fun SlmSettingsCard(
                 }
                 
                 Spacer(modifier = Modifier.height(12.dp))
-                HorizontalDivider()
+                Divider()
                 Spacer(modifier = Modifier.height(12.dp))
                 
                 Row(

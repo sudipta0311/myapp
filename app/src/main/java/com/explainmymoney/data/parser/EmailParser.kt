@@ -3,6 +3,7 @@ package com.explainmymoney.data.parser
 import com.explainmymoney.data.gmail.EmailData
 import com.explainmymoney.domain.model.Transaction
 import com.explainmymoney.domain.model.TransactionCategory
+import com.explainmymoney.domain.model.TransactionSource
 import com.explainmymoney.domain.model.TransactionType
 import java.util.regex.Pattern
 
@@ -51,13 +52,14 @@ class EmailParser {
         val summary = generateSummary(type, amount, merchant, category)
         
         return Transaction(
+            rawMessage = email.body.take(500),
+            source = TransactionSource.EMAIL,
             amount = amount,
             type = type,
             category = category,
             merchant = merchant,
             summary = summary,
-            timestamp = email.date,
-            source = "Email: ${email.from.take(30)}"
+            timestamp = email.date
         )
     }
     

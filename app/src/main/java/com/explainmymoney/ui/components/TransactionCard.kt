@@ -110,7 +110,7 @@ fun TransactionCard(
 
             if (showDetails) {
                 Spacer(modifier = Modifier.height(12.dp))
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Divider(color = MaterialTheme.colorScheme.outlineVariant)
                 Spacer(modifier = Modifier.height(12.dp))
 
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -190,6 +190,16 @@ private fun getCategoryIcon(category: TransactionCategory): ImageVector {
         TransactionCategory.INVESTMENT -> Icons.Default.TrendingUp
         TransactionCategory.SALARY -> Icons.Default.AccountBalance
         TransactionCategory.TRANSFER -> Icons.Default.SwapHoriz
+        TransactionCategory.HEALTH -> Icons.Default.LocalHospital
+        TransactionCategory.TRAVEL -> Icons.Default.Flight
+        TransactionCategory.EDUCATION -> Icons.Default.School
+        TransactionCategory.INSURANCE -> Icons.Default.Security
+        TransactionCategory.SUBSCRIPTIONS -> Icons.Default.Subscriptions
+        TransactionCategory.GROCERIES -> Icons.Default.ShoppingCart
+        TransactionCategory.FUEL -> Icons.Default.LocalGasStation
+        TransactionCategory.RENT -> Icons.Default.Apartment
+        TransactionCategory.PERSONAL_CARE -> Icons.Default.Spa
+        TransactionCategory.GIFTS -> Icons.Default.CardGiftcard
         TransactionCategory.OTHER -> Icons.Default.MoreHoriz
     }
 }
@@ -205,6 +215,16 @@ private fun getCategoryColor(category: TransactionCategory): Color {
         TransactionCategory.INVESTMENT -> Color(0xFF51CF66)
         TransactionCategory.SALARY -> Color(0xFF22B8CF)
         TransactionCategory.TRANSFER -> Color(0xFF748FFC)
+        TransactionCategory.HEALTH -> Color(0xFFFA5252)
+        TransactionCategory.TRAVEL -> Color(0xFF15AABF)
+        TransactionCategory.EDUCATION -> Color(0xFF7950F2)
+        TransactionCategory.INSURANCE -> Color(0xFF40C057)
+        TransactionCategory.SUBSCRIPTIONS -> Color(0xFFE64980)
+        TransactionCategory.GROCERIES -> Color(0xFF82C91E)
+        TransactionCategory.FUEL -> Color(0xFFFD7E14)
+        TransactionCategory.RENT -> Color(0xFF4C6EF5)
+        TransactionCategory.PERSONAL_CARE -> Color(0xFFBE4BDB)
+        TransactionCategory.GIFTS -> Color(0xFFF783AC)
         TransactionCategory.OTHER -> Color(0xFF868E96)
     }
 }
