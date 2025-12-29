@@ -179,26 +179,50 @@ class SmsParser {
         val combined = "${body.lowercase()} ${merchant?.lowercase() ?: ""}"
 
         return when {
-            combined.matches(Regex(".*(sip|systematic investment|mutual fund|groww|zerodha|upstox).*")) ->
+            combined.matches(Regex(".*(sip|systematic investment|mutual fund|groww|zerodha|upstox|kuvera).*")) ->
                 TransactionCategory.INVESTMENT to InvestmentType.SIP
             combined.matches(Regex(".*(ppf|public provident).*")) ->
                 TransactionCategory.INVESTMENT to InvestmentType.PPF
             combined.matches(Regex(".*(nps|national pension).*")) ->
                 TransactionCategory.INVESTMENT to InvestmentType.NPS
-            combined.matches(Regex(".*(zomato|swiggy|food|restaurant|cafe|pizza).*")) ->
+            combined.matches(Regex(".*(stock|share|equity|trading).*")) ->
+                TransactionCategory.INVESTMENT to InvestmentType.STOCKS
+            combined.matches(Regex(".*(zomato|swiggy|food|restaurant|cafe|pizza|burger|domino|mcdonald|kfc|starbucks|dunkin).*")) ->
                 TransactionCategory.FOOD to null
-            combined.matches(Regex(".*(netflix|prime|hotstar|spotify|movie|entertainment).*")) ->
+            combined.matches(Regex(".*(netflix|prime|hotstar|spotify|movie|entertainment|pvr|inox|bookmyshow).*")) ->
                 TransactionCategory.ENTERTAINMENT to null
-            combined.matches(Regex(".*(home loan|housing loan|mortgage).*")) ->
+            combined.matches(Regex(".*(home loan|housing loan|mortgage|hdfc home|sbi home).*")) ->
                 TransactionCategory.EMI_HOME_LOAN to null
-            combined.matches(Regex(".*(car loan|auto loan|vehicle).*")) ->
+            combined.matches(Regex(".*(car loan|auto loan|vehicle loan|two wheeler|bike loan).*")) ->
                 TransactionCategory.EMI_CAR_LOAN to null
-            combined.matches(Regex(".*(electricity|water|gas|internet|broadband|mobile|recharge).*")) ->
+            combined.matches(Regex(".*(electricity|water|gas bill|internet|broadband|mobile|recharge|airtel|jio|vi|bsnl).*")) ->
                 TransactionCategory.UTILITIES to null
-            combined.matches(Regex(".*(amazon|flipkart|myntra|shopping).*")) ->
+            combined.matches(Regex(".*(amazon|flipkart|myntra|ajio|shopping|mall|retail).*")) ->
                 TransactionCategory.SHOPPING to null
-            combined.matches(Regex(".*(salary|credited.*account).*")) ->
+            combined.matches(Regex(".*(hospital|doctor|clinic|medical|pharmacy|medicine|apollo|fortis|1mg|pharmeasy).*")) ->
+                TransactionCategory.HEALTH to null
+            combined.matches(Regex(".*(uber|ola|rapido|flight|makemytrip|goibibo|irctc|train|hotel|booking|airbnb|oyo).*")) ->
+                TransactionCategory.TRAVEL to null
+            combined.matches(Regex(".*(school|college|tuition|course|udemy|coursera|education|exam|fee).*")) ->
+                TransactionCategory.EDUCATION to null
+            combined.matches(Regex(".*(insurance|lic|policy|premium|hdfc life|icici pru|term plan).*")) ->
+                TransactionCategory.INSURANCE to null
+            combined.matches(Regex(".*(subscription|youtube premium|disney|hbo|apple music|membership).*")) ->
+                TransactionCategory.SUBSCRIPTIONS to null
+            combined.matches(Regex(".*(bigbasket|blinkit|zepto|grocery|supermarket|dmart|reliance fresh|more).*")) ->
+                TransactionCategory.GROCERIES to null
+            combined.matches(Regex(".*(petrol|diesel|fuel|hp|ioc|bharat petroleum|shell|gas station).*")) ->
+                TransactionCategory.FUEL to null
+            combined.matches(Regex(".*(rent|lease|landlord|housing rent|pg|hostel).*")) ->
+                TransactionCategory.RENT to null
+            combined.matches(Regex(".*(salon|spa|beauty|haircut|grooming|nykaa|mamaearth).*")) ->
+                TransactionCategory.PERSONAL_CARE to null
+            combined.matches(Regex(".*(gift|donation|charity|present).*")) ->
+                TransactionCategory.GIFTS to null
+            combined.matches(Regex(".*(salary|credited.*account|wages|income).*")) ->
                 TransactionCategory.SALARY to null
+            combined.matches(Regex(".*(transfer|neft|imps|rtgs|upi).*")) ->
+                TransactionCategory.TRANSFER to null
             else -> TransactionCategory.OTHER to null
         }
     }

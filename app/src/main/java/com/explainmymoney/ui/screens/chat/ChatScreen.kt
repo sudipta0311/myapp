@@ -36,6 +36,7 @@ fun ChatScreen(
     currencySymbol: String,
     isSlmEnabled: Boolean = false,
     onSlmQuery: suspend (String) -> String = { "" },
+    onLocalQuery: (String) -> String = { "" },
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
@@ -69,10 +70,15 @@ fun ChatScreen(
             val response = if (isSlmEnabled) {
                 val slmResponse = onSlmQuery(query)
                 slmResponse.ifEmpty { 
-                    generateLocalResponse(query, transactions, currencySymbol) 
+                    onLocalQuery(query).ifEmpty {
+                        generateLocalResponse(query, transactions, currencySymbol)
+                    }
                 }
             } else {
-                generateLocalResponse(query, transactions, currencySymbol)
+                val localResponse = onLocalQuery(query)
+                localResponse.ifEmpty {
+                    generateLocalResponse(query, transactions, currencySymbol)
+                }
             }
             
             messages = messages + ChatMessage(

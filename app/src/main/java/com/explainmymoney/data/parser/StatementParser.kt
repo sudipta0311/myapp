@@ -301,20 +301,39 @@ class StatementParser(private val context: Context) {
                 TransactionCategory.INVESTMENT to InvestmentType.STOCKS
             desc.matches(Regex(".*(bond|debenture|fixed deposit|fd).*")) ->
                 TransactionCategory.INVESTMENT to InvestmentType.BONDS
-            desc.matches(Regex(".*(zomato|swiggy|food|restaurant|cafe|pizza|burger|domino|mcdonald|kfc|starbucks).*")) ->
+            desc.matches(Regex(".*(zomato|swiggy|food|restaurant|cafe|pizza|burger|domino|mcdonald|kfc|starbucks|dunkin).*")) ->
                 TransactionCategory.FOOD to null
-            desc.matches(Regex(".*(netflix|prime|hotstar|spotify|movie|theater|cinema|entertainment|game).*")) ->
+            desc.matches(Regex(".*(netflix|prime|hotstar|spotify|movie|theater|cinema|entertainment|game|pvr|inox|bookmyshow).*")) ->
                 TransactionCategory.ENTERTAINMENT to null
             desc.matches(Regex(".*(home loan|housing loan|mortgage|hdfc home|sbi home).*")) ->
                 TransactionCategory.EMI_HOME_LOAN to null
             desc.matches(Regex(".*(car loan|auto loan|vehicle loan|two wheeler|bike loan).*")) ->
                 TransactionCategory.EMI_CAR_LOAN to null
-            desc.matches(Regex(".*(electricity|water|gas|internet|broadband|jio|airtel|vi|bsnl|mobile recharge).*")) ->
+            desc.matches(Regex(".*(electricity|water|gas bill|internet|broadband|jio|airtel|vi|bsnl|mobile recharge).*")) ->
                 TransactionCategory.UTILITIES to null
-            desc.matches(Regex(".*(amazon|flipkart|myntra|shopping|mall|store|purchase|retail).*")) ->
+            desc.matches(Regex(".*(amazon|flipkart|myntra|ajio|shopping|mall|store|purchase|retail).*")) ->
                 TransactionCategory.SHOPPING to null
-            desc.matches(Regex(".*(salary|wages|income|credit|received|deposit).*")) && 
-                desc.matches(Regex(".*(credited|received|deposit).*")) ->
+            desc.matches(Regex(".*(hospital|doctor|clinic|medical|pharmacy|medicine|apollo|fortis|1mg|pharmeasy|health).*")) ->
+                TransactionCategory.HEALTH to null
+            desc.matches(Regex(".*(uber|ola|rapido|flight|makemytrip|goibibo|irctc|train|hotel|booking|airbnb|oyo|travel).*")) ->
+                TransactionCategory.TRAVEL to null
+            desc.matches(Regex(".*(school|college|tuition|course|udemy|coursera|education|exam|fee|university).*")) ->
+                TransactionCategory.EDUCATION to null
+            desc.matches(Regex(".*(insurance|lic|policy|premium|hdfc life|icici pru|term plan).*")) ->
+                TransactionCategory.INSURANCE to null
+            desc.matches(Regex(".*(subscription|youtube premium|disney|hbo|apple music|membership).*")) ->
+                TransactionCategory.SUBSCRIPTIONS to null
+            desc.matches(Regex(".*(bigbasket|blinkit|zepto|grocery|supermarket|dmart|reliance fresh|more|grofers).*")) ->
+                TransactionCategory.GROCERIES to null
+            desc.matches(Regex(".*(petrol|diesel|fuel|hp|ioc|bharat petroleum|shell|gas station).*")) ->
+                TransactionCategory.FUEL to null
+            desc.matches(Regex(".*(rent|lease|landlord|housing rent|pg|hostel).*")) ->
+                TransactionCategory.RENT to null
+            desc.matches(Regex(".*(salon|spa|beauty|haircut|grooming|nykaa|mamaearth).*")) ->
+                TransactionCategory.PERSONAL_CARE to null
+            desc.matches(Regex(".*(gift|donation|charity|present).*")) ->
+                TransactionCategory.GIFTS to null
+            desc.matches(Regex(".*(salary|wages|income).*")) && desc.matches(Regex(".*(credited|received|deposit).*")) ->
                 TransactionCategory.SALARY to null
             desc.matches(Regex(".*(transfer|neft|imps|rtgs|upi).*")) ->
                 TransactionCategory.TRANSFER to null

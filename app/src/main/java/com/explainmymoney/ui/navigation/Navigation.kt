@@ -62,6 +62,9 @@ fun MainNavigation(
     val slmDownloadProgress by viewModel.slmDownloadProgress.collectAsState()
     val slmIsReady by viewModel.slmIsReady.collectAsState()
     val isGmailScanning by viewModel.isGmailScanning.collectAsState()
+    val totalSpentThisYear by viewModel.totalSpentThisYear.collectAsState()
+    val totalIncomeThisYear by viewModel.totalIncomeThisYear.collectAsState()
+    val totalInvestedThisYear by viewModel.totalInvestedThisYear.collectAsState()
 
     Scaffold(
         bottomBar = {
@@ -98,6 +101,9 @@ fun MainNavigation(
                     totalIncome = totalIncome,
                     categoryBreakdown = categoryBreakdown,
                     currencySymbol = viewModel.getCurrencySymbol(),
+                    totalSpentThisYear = totalSpentThisYear,
+                    totalIncomeThisYear = totalIncomeThisYear,
+                    totalInvestedThisYear = totalInvestedThisYear,
                     onRefresh = { viewModel.loadAnalytics() }
                 )
             }
@@ -112,7 +118,8 @@ fun MainNavigation(
                     transactions = transactions,
                     currencySymbol = viewModel.getCurrencySymbol(),
                     isSlmEnabled = viewModel.isSlmEnabled(),
-                    onSlmQuery = { query -> viewModel.generateSlmResponse(query) }
+                    onSlmQuery = { query -> viewModel.generateSlmResponse(query) },
+                    onLocalQuery = { query -> viewModel.generateAssistantResponse(query) }
                 )
             }
             composable(Screen.Settings.route) {

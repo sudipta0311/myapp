@@ -12,8 +12,12 @@ import com.explainmymoney.data.gmail.GmailReader
 import com.explainmymoney.data.parser.EmailParser
 import com.explainmymoney.data.parser.SmsParser
 import com.explainmymoney.data.parser.StatementParser
+import com.explainmymoney.data.repository.BudgetRepository
 import com.explainmymoney.data.repository.TransactionRepository
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
+import com.explainmymoney.domain.assistant.FinanceAssistant
+import com.explainmymoney.domain.model.Budget
+import com.explainmymoney.domain.model.BudgetWithSpending
 import com.explainmymoney.domain.model.Country
 import com.explainmymoney.domain.model.Transaction
 import com.explainmymoney.domain.model.TransactionCategory
@@ -34,13 +38,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val database = AppDatabase.getDatabase(application)
     private val transactionDao = database.transactionDao()
     private val userSettingsDao = database.userSettingsDao()
+    private val budgetDao = database.budgetDao()
     
     val repository = TransactionRepository(transactionDao)
+    val budgetRepository = BudgetRepository(budgetDao, transactionDao)
     private val smsParser = SmsParser()
     private val statementParser = StatementParser(application)
     val slmManager = SlmManager(application)
     val gmailReader = GmailReader(application)
     private val emailParser = EmailParser()
+    private val financeAssistant = FinanceAssistant()
     
     val transactions: StateFlow<List<Transaction>> = repository.getAllTransactions()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -75,9 +82,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isGmailScanning = MutableStateFlow(false)
     val isGmailScanning: StateFlow<Boolean> = _isGmailScanning.asStateFlow()
     
+    private val _totalSpentThisYear = MutableStateFlow(0.0)
+    val totalSpentThisYear: StateFlow<Double> = _totalSpentThisYear.asStateFlow()
+    
+    private val _totalIncomeThisYear = MutableStateFlow(0.0)
+    val totalIncomeThisYear: StateFlow<Double> = _totalIncomeThisYear.asStateFlow()
+    
+    private val _totalInvestedThisYear = MutableStateFlow(0.0)
+    val totalInvestedThisYear: StateFlow<Double> = _totalInvestedThisYear.asStateFlow()
+    
+    val budgetsWithSpending: StateFlow<List<BudgetWithSpending>> = budgetRepository
+        .getCurrentMonthBudgetsWithSpending()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    
+    private val _pendingStatementTransactions = MutableStateFlow<List<Transaction>>(emptyList())
+    val pendingStatementTransactions: StateFlow<List<Transaction>> = _pendingStatementTransactions.asStateFlow()
+    
+    private val _pendingStatementFileName = MutableStateFlow<String?>(null)
+    val pendingStatementFileName: StateFlow<String?> = _pendingStatementFileName.asStateFlow()
+    
     init {
         loadUserSettings()
         loadAnalytics()
+        loadYearlyAnalytics()
     }
     
     private fun loadUserSettings() {
@@ -99,6 +126,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _totalSpentThisMonth.value = repository.getTotalSpentThisMonth()
             _totalIncomeThisMonth.value = repository.getTotalIncomeThisMonth()
             _categoryBreakdown.value = repository.getCategoryBreakdown()
+        }
+    }
+    
+    private fun loadYearlyAnalytics() {
+        viewModelScope.launch {
+            _totalSpentThisYear.value = repository.getTotalSpentThisYear()
+            _totalIncomeThisYear.value = repository.getTotalIncomeThisYear()
+            _totalInvestedThisYear.value = repository.getTotalInvestedThisYear()
         }
     }
     
@@ -129,6 +164,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.insertTransactions(transactions)
             loadAnalytics()
+            loadYearlyAnalytics()
+        }
+    }
+    
+    fun insertTransaction(transaction: Transaction) {
+        viewModelScope.launch {
+            repository.insertTransaction(transaction)
+            loadAnalytics()
+            loadYearlyAnalytics()
+            _scanResult.value = "Transaction added successfully"
+        }
+    }
+    
+    fun insertTransactionsWithDeduplication(transactions: List<Transaction>) {
+        viewModelScope.launch {
+            val insertedCount = repository.insertTransactionsWithDeduplication(transactions)
+            loadAnalytics()
+            loadYearlyAnalytics()
+            _scanResult.value = "Imported $insertedCount new transactions (${transactions.size - insertedCount} duplicates skipped)"
         }
     }
     
@@ -136,11 +190,78 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.deleteTransaction(id)
             loadAnalytics()
+            loadYearlyAnalytics()
         }
     }
     
     fun clearScanResult() {
         _scanResult.value = null
+    }
+    
+    // Budget functions
+    fun addBudget(category: TransactionCategory, monthlyLimit: Double) {
+        viewModelScope.launch {
+            val budget = Budget(
+                category = category,
+                monthlyLimit = monthlyLimit,
+                yearMonth = BudgetRepository.getCurrentYearMonth()
+            )
+            budgetRepository.insertBudget(budget)
+        }
+    }
+    
+    fun updateBudget(budget: Budget) {
+        viewModelScope.launch {
+            budgetRepository.updateBudget(budget)
+        }
+    }
+    
+    fun deleteBudget(budgetId: Long) {
+        viewModelScope.launch {
+            budgetRepository.deleteBudget(budgetId)
+        }
+    }
+    
+    // Statement preview functions
+    fun parseStatementForPreview(uri: Uri, fileName: String) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val parsed = withContext(Dispatchers.IO) {
+                    statementParser.parseFile(uri)
+                }
+                _pendingStatementTransactions.value = parsed
+                _pendingStatementFileName.value = fileName
+            } catch (e: Exception) {
+                _scanResult.value = "Error parsing file: ${e.message}"
+                _pendingStatementTransactions.value = emptyList()
+                _pendingStatementFileName.value = null
+            }
+            _isLoading.value = false
+        }
+    }
+    
+    fun confirmStatementImport(selectedTransactions: List<Transaction>) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            val insertedCount = repository.insertTransactionsWithDeduplication(selectedTransactions)
+            loadAnalytics()
+            loadYearlyAnalytics()
+            _scanResult.value = "Imported $insertedCount transactions"
+            clearPendingStatement()
+            _isLoading.value = false
+        }
+    }
+    
+    fun clearPendingStatement() {
+        _pendingStatementTransactions.value = emptyList()
+        _pendingStatementFileName.value = null
+    }
+    
+    // Enhanced assistant response
+    fun generateAssistantResponse(query: String): String {
+        val intent = financeAssistant.detectIntent(query)
+        return financeAssistant.generateResponse(intent, transactions.value, getCurrencySymbol())
     }
     
     fun scanSmsMessages(context: Context, hasPermission: Boolean) {

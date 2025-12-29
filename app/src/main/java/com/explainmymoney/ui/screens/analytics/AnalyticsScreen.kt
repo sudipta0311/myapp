@@ -31,6 +31,9 @@ fun AnalyticsScreen(
     totalIncome: Double,
     categoryBreakdown: Map<TransactionCategory, Double>,
     currencySymbol: String,
+    totalSpentThisYear: Double = 0.0,
+    totalIncomeThisYear: Double = 0.0,
+    totalInvestedThisYear: Double = 0.0,
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -207,6 +210,93 @@ fun AnalyticsScreen(
                         total = totalSpent,
                         currencySymbol = currencySymbol
                     )
+                }
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "YEARLY SUMMARY (${Calendar.getInstance().get(Calendar.YEAR)})",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Total Spent",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
+                                )
+                                Text(
+                                    text = "$currencySymbol${formatAmount(totalSpentThisYear)}",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                                )
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    text = "Total Income",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
+                                )
+                                Text(
+                                    text = "$currencySymbol${formatAmount(totalIncomeThisYear)}",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF4CAF50)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Total Invested",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
+                                )
+                                Text(
+                                    text = "$currencySymbol${formatAmount(totalInvestedThisYear)}",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    text = "Net Savings",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
+                                )
+                                val netSavings = totalIncomeThisYear - totalSpentThisYear
+                                Text(
+                                    text = "${if (netSavings >= 0) "+" else ""}$currencySymbol${formatAmount(netSavings)}",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (netSavings >= 0) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
@@ -398,6 +488,16 @@ private fun getCategoryIcon(category: TransactionCategory): ImageVector {
         TransactionCategory.INVESTMENT -> Icons.Default.TrendingUp
         TransactionCategory.SALARY -> Icons.Default.AccountBalance
         TransactionCategory.TRANSFER -> Icons.Default.SwapHoriz
+        TransactionCategory.HEALTH -> Icons.Default.LocalHospital
+        TransactionCategory.TRAVEL -> Icons.Default.Flight
+        TransactionCategory.EDUCATION -> Icons.Default.School
+        TransactionCategory.INSURANCE -> Icons.Default.Security
+        TransactionCategory.SUBSCRIPTIONS -> Icons.Default.Subscriptions
+        TransactionCategory.GROCERIES -> Icons.Default.ShoppingCart
+        TransactionCategory.FUEL -> Icons.Default.LocalGasStation
+        TransactionCategory.RENT -> Icons.Default.Apartment
+        TransactionCategory.PERSONAL_CARE -> Icons.Default.Spa
+        TransactionCategory.GIFTS -> Icons.Default.CardGiftcard
         TransactionCategory.OTHER -> Icons.Default.MoreHoriz
     }
 }
@@ -413,6 +513,16 @@ private fun getCategoryColor(category: TransactionCategory): Color {
         TransactionCategory.INVESTMENT -> Color(0xFF51CF66)
         TransactionCategory.SALARY -> Color(0xFF22B8CF)
         TransactionCategory.TRANSFER -> Color(0xFF748FFC)
+        TransactionCategory.HEALTH -> Color(0xFFFA5252)
+        TransactionCategory.TRAVEL -> Color(0xFF15AABF)
+        TransactionCategory.EDUCATION -> Color(0xFF7950F2)
+        TransactionCategory.INSURANCE -> Color(0xFF40C057)
+        TransactionCategory.SUBSCRIPTIONS -> Color(0xFFE64980)
+        TransactionCategory.GROCERIES -> Color(0xFF82C91E)
+        TransactionCategory.FUEL -> Color(0xFFFD7E14)
+        TransactionCategory.RENT -> Color(0xFF4C6EF5)
+        TransactionCategory.PERSONAL_CARE -> Color(0xFFBE4BDB)
+        TransactionCategory.GIFTS -> Color(0xFFF783AC)
         TransactionCategory.OTHER -> Color(0xFF868E96)
     }
 }

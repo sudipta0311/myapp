@@ -3,6 +3,7 @@ package com.explainmymoney.data.database
 import androidx.room.*
 import com.explainmymoney.domain.model.Transaction
 import com.explainmymoney.domain.model.TransactionCategory
+import com.explainmymoney.domain.model.TransactionSource
 import com.explainmymoney.domain.model.TransactionType
 import kotlinx.coroutines.flow.Flow
 
@@ -55,4 +56,33 @@ interface TransactionDao {
 
     @Query("SELECT COUNT(*) FROM transactions")
     suspend fun getTransactionCount(): Int
+
+    @Query("SELECT * FROM transactions WHERE amount = :amount AND timestamp BETWEEN :startTime AND :endTime AND type = :type LIMIT 1")
+    suspend fun findDuplicate(amount: Double, startTime: Long, endTime: Long, type: TransactionType): Transaction?
+
+    @Query("SELECT SUM(amount) FROM transactions WHERE type = 'DEBIT' AND timestamp BETWEEN :startTime AND :endTime")
+    suspend fun getTotalSpentInRange(startTime: Long, endTime: Long): Double?
+
+    @Query("SELECT SUM(amount) FROM transactions WHERE type = 'CREDIT' AND timestamp BETWEEN :startTime AND :endTime")
+    suspend fun getTotalIncomeInRange(startTime: Long, endTime: Long): Double?
+
+    @Query("SELECT SUM(amount) FROM transactions WHERE category = 'INVESTMENT' AND timestamp BETWEEN :startTime AND :endTime")
+    suspend fun getTotalInvestedInRange(startTime: Long, endTime: Long): Double?
+
+    @Query("SELECT * FROM transactions WHERE timestamp BETWEEN :startTime AND :endTime AND type = 'DEBIT' ORDER BY amount DESC LIMIT :limit")
+    suspend fun getTopExpensesInRange(startTime: Long, endTime: Long, limit: Int): List<Transaction>
+
+    @Query("SELECT category, SUM(amount) as total FROM transactions WHERE type = 'DEBIT' AND timestamp BETWEEN :startTime AND :endTime GROUP BY category ORDER BY total DESC")
+    suspend fun getCategoryTotalsInRange(startTime: Long, endTime: Long): List<CategoryTotal>
+
+    @Query("SELECT * FROM transactions WHERE source = :source ORDER BY timestamp DESC")
+    fun getTransactionsBySource(source: TransactionSource): Flow<List<Transaction>>
+
+    @Query("SELECT DISTINCT strftime('%Y-%m', datetime(timestamp/1000, 'unixepoch')) as month FROM transactions ORDER BY month DESC")
+    fun getDistinctMonths(): Flow<List<String>>
 }
+
+data class CategoryTotal(
+    val category: TransactionCategory,
+    val total: Double
+)

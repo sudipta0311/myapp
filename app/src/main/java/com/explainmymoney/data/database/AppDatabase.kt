@@ -5,18 +5,20 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import com.explainmymoney.domain.model.Budget
 import com.explainmymoney.domain.model.Transaction
 import com.explainmymoney.domain.model.UserSettings
 
 @Database(
-    entities = [Transaction::class, UserSettings::class],
-    version = 2,
+    entities = [Transaction::class, UserSettings::class, Budget::class],
+    version = 3,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun transactionDao(): TransactionDao
     abstract fun userSettingsDao(): UserSettingsDao
+    abstract fun budgetDao(): BudgetDao
 
     companion object {
         @Volatile
