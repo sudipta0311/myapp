@@ -93,7 +93,8 @@ fun MainNavigation(
                     onClearScanResult = { viewModel.clearScanResult() },
                     isGmailConnected = viewModel.isGmailConnected(),
                     isGmailScanning = isGmailScanning,
-                    onScanGmail = { viewModel.scanGmailEmails() }
+                    onScanGmail = { viewModel.scanGmailEmails() },
+                    onConnectEmail = { navController.navigate(Screen.Settings.route) }
                 )
             }
             composable(Screen.Analytics.route) {

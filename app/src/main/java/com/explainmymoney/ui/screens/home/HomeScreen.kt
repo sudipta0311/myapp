@@ -38,6 +38,7 @@ fun HomeScreen(
     isGmailConnected: Boolean = false,
     isGmailScanning: Boolean = false,
     onScanGmail: () -> Unit = {},
+    onConnectEmail: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -134,20 +135,20 @@ fun HomeScreen(
                 }
             }
 
-            if (isGmailConnected) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.Center
-                ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (isGmailConnected) {
                     Button(
                         onClick = onScanGmail,
                         enabled = !isLoading,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.tertiary
                         ),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.weight(1f)
                     ) {
                         if (isGmailScanning) {
                             CircularProgressIndicator(
@@ -159,7 +160,16 @@ fun HomeScreen(
                             Icon(Icons.Default.Email, contentDescription = null, modifier = Modifier.size(18.dp))
                         }
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(if (isGmailScanning) "Scanning Emails..." else "Scan Gmail Transactions")
+                        Text(if (isGmailScanning) "Scanning..." else "Scan Email")
+                    }
+                } else {
+                    OutlinedButton(
+                        onClick = onConnectEmail,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Default.Email, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Connect Email")
                     }
                 }
             }
