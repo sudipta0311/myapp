@@ -12,6 +12,37 @@
 -keep class com.tom_roush.** { *; }
 -dontwarn com.tom_roush.**
 
-# Apache POI
+# Apache POI and related libraries
 -dontwarn org.apache.poi.**
 -keep class org.apache.poi.** { *; }
+-dontwarn org.apache.xmlbeans.**
+-keep class org.apache.xmlbeans.** { *; }
+-dontwarn org.apache.commons.**
+-keep class org.apache.commons.** { *; }
+
+# Saxon (used by Apache XMLBeans)
+-dontwarn net.sf.saxon.**
+
+# OSGi framework (used by log4j)
+-dontwarn org.osgi.**
+
+# AWT/Swing (not available on Android)
+-dontwarn java.awt.**
+-dontwarn javax.swing.**
+
+# javax.xml.stream (not fully available on Android)
+-dontwarn javax.xml.stream.**
+
+# aQute BND annotations
+-dontwarn aQute.bnd.annotation.**
+
+# Apache Logging
+-dontwarn org.apache.logging.log4j.**
+-keep class org.apache.logging.log4j.** { *; }
+
+# GraphBuilder
+-dontwarn com.graphbuilder.**
+
+# OpenCSV
+-dontwarn com.opencsv.**
+-keep class com.opencsv.** { *; }
