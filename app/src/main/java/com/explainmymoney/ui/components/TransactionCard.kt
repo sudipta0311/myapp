@@ -21,6 +21,7 @@ import com.explainmymoney.domain.model.TransactionType
 import java.text.SimpleDateFormat
 import java.util.*
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransactionCard(
     transaction: Transaction,
