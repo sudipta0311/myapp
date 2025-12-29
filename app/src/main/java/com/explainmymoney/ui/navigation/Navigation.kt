@@ -14,6 +14,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import android.content.Intent
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.explainmymoney.domain.slm.SlmDownloadState
 import com.explainmymoney.ui.screens.analytics.AnalyticsScreen
 import com.explainmymoney.ui.screens.chat.ChatScreen
@@ -83,6 +84,7 @@ fun MainNavigation(
                     isLoading = isLoading,
                     scanResult = scanResult,
                     currencySymbol = viewModel.getCurrencySymbol(),
+                    userName = if (userSettings?.isLoggedIn == true) userSettings?.displayName else null,
                     onScanSms = { context, hasPermission -> 
                         viewModel.scanSmsMessages(context, hasPermission) 
                     },
@@ -125,9 +127,16 @@ fun MainNavigation(
             composable(Screen.Settings.route) {
                 PermissionsScreen(
                     userSettings = userSettings,
-                    onLogin = { 
-                        viewModel.login("Demo User", "demo@example.com", null) 
+                    onLogin = { account ->
+                        account?.let {
+                            viewModel.login(
+                                it.displayName ?: "User",
+                                it.email ?: "",
+                                it.photoUrl?.toString()
+                            )
+                        }
                     },
+                    onGetLoginSignInIntent = { viewModel.getLoginSignInIntent() },
                     onLogout = { viewModel.logout() },
                     onCountryChange = { country -> viewModel.updateCountry(country) },
                     deviceCapability = viewModel.checkSlmCapability(),

@@ -30,6 +30,7 @@ fun HomeScreen(
     isLoading: Boolean,
     scanResult: String?,
     currencySymbol: String,
+    userName: String? = null,
     onScanSms: (Context, Boolean) -> Unit,
     onImportFile: (Uri) -> Unit,
     onDeleteTransaction: (Long) -> Unit,
@@ -41,6 +42,15 @@ fun HomeScreen(
 ) {
     val context = LocalContext.current
     val smsPermissionState = rememberPermissionState(Manifest.permission.READ_SMS)
+    var pendingSmsScam by remember { mutableStateOf(false) }
+    
+    // Auto-trigger SMS scan when permission is granted after requesting
+    LaunchedEffect(smsPermissionState.status.isGranted) {
+        if (smsPermissionState.status.isGranted && pendingSmsScam) {
+            pendingSmsScam = false
+            onScanSms(context, true)
+        }
+    }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -54,7 +64,7 @@ fun HomeScreen(
                 title = {
                     Column {
                         Text(
-                            text = "Explain My Money",
+                            text = if (userName != null) "Hi, $userName" else "Explain My Money",
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -91,6 +101,7 @@ fun HomeScreen(
                 Button(
                     onClick = { 
                         if (!smsPermissionState.status.isGranted) {
+                            pendingSmsScam = true
                             smsPermissionState.launchPermissionRequest()
                         } else {
                             onScanSms(context, true)

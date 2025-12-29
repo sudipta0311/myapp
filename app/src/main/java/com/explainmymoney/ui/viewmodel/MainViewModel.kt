@@ -413,6 +413,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return _userSettings.value?.slmEnabled == true && slmManager.isModelReady.value
     }
     
+    // Login functions
+    fun getLoginSignInIntent(): Intent {
+        val gso = com.google.android.gms.auth.api.signin.GoogleSignInOptions.Builder(
+            com.google.android.gms.auth.api.signin.GoogleSignInOptions.DEFAULT_SIGN_IN
+        )
+            .requestEmail()
+            .requestProfile()
+            .build()
+        return com.google.android.gms.auth.api.signin.GoogleSignIn.getClient(getApplication(), gso).signInIntent
+    }
+    
     // Gmail functions
     fun isGmailConnected(): Boolean {
         return gmailReader.isAuthenticated()

@@ -34,7 +34,8 @@ import com.google.android.gms.common.api.ApiException
 @Composable
 fun PermissionsScreen(
     userSettings: UserSettings?,
-    onLogin: () -> Unit,
+    onLogin: (GoogleSignInAccount?) -> Unit,
+    onGetLoginSignInIntent: () -> Intent = { Intent() },
     onLogout: () -> Unit,
     onCountryChange: (Country) -> Unit,
     deviceCapability: DeviceCapability,
@@ -57,6 +58,20 @@ fun PermissionsScreen(
     var showCountryPicker by remember { mutableStateOf(false) }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     var showGmailDisconnectConfirmation by remember { mutableStateOf(false) }
+
+    val loginSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            try {
+                val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+                val account = task.getResult(ApiException::class.java)
+                onLogin(account)
+            } catch (e: ApiException) {
+                onLogin(null)
+            }
+        }
+    }
 
     val gmailSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -174,10 +189,10 @@ fun PermissionsScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                            Button(onClick = onLogin) {
+                            Button(onClick = { loginSignInLauncher.launch(onGetLoginSignInIntent()) }) {
                                 Icon(Icons.Default.Login, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("Sign In")
+                                Text("Sign In with Google")
                             }
                         }
                     }
@@ -507,7 +522,7 @@ private fun GmailConnectionCard(
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Gmail Access",
+                    text = "Email Access",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold
                 )
