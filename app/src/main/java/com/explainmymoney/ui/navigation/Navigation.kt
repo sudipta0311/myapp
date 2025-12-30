@@ -146,7 +146,9 @@ fun MainNavigation(
                     isSlmModelDownloaded = viewModel.isSlmModelDownloaded(),
                     onToggleSlm = { enabled -> viewModel.toggleSlmEnabled(enabled) },
                     onDownloadSlm = { viewModel.downloadSlmModel() },
-                    onDeleteSlm = { viewModel.deleteSlmModel() }
+                    onDeleteSlm = { viewModel.deleteSlmModel() },
+                    onGetGmailSignInIntent = { viewModel.getGmailSignInIntent() },
+                    onGmailSignInResult = { account -> viewModel.handleGmailSignInResult(account) }
                 )
             }
         }

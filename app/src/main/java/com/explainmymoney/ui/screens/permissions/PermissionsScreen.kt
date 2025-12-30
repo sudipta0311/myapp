@@ -48,6 +48,8 @@ fun PermissionsScreen(
     onToggleSlm: (Boolean) -> Unit,
     onDownloadSlm: () -> Unit,
     onDeleteSlm: () -> Unit,
+    onGetGmailSignInIntent: () -> Intent = { Intent() },
+    onGmailSignInResult: (GoogleSignInAccount?) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val smsPermission = rememberPermissionState(Manifest.permission.READ_SMS)
@@ -67,6 +69,20 @@ fun PermissionsScreen(
                 showLoginDialog = false
             } catch (e: ApiException) {
                 onLogin(null)
+            }
+        }
+    }
+
+    val gmailSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            try {
+                val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+                val account = task.getResult(ApiException::class.java)
+                onGmailSignInResult(account)
+            } catch (e: ApiException) {
+                onGmailSignInResult(null)
             }
         }
     }
@@ -295,7 +311,7 @@ fun PermissionsScreen(
                 EmailPermissionCard(
                     isConnected = userSettings?.gmailConnected == true,
                     email = userSettings?.gmailEmail,
-                    onConnect = { loginSignInLauncher.launch(onGetLoginSignInIntent()) }
+                    onConnect = { gmailSignInLauncher.launch(onGetGmailSignInIntent()) }
                 )
             }
 
