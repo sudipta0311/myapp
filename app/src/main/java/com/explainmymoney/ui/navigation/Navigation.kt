@@ -91,7 +91,6 @@ fun MainNavigation(
                     onImportFile = { uri -> viewModel.parseStatementFile(uri) },
                     onDeleteTransaction = { id -> viewModel.deleteTransaction(id) },
                     onClearScanResult = { viewModel.clearScanResult() },
-                    hasSmsPermission = viewModel.hasSmsPermission(),
                     hasEmailPermission = viewModel.isGmailConnected(),
                     isEmailScanning = isGmailScanning,
                     onScanEmail = { viewModel.scanGmailEmails() },

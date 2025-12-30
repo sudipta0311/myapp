@@ -1,5 +1,6 @@
 package com.explainmymoney.ui.screens.home
 
+import android.Manifest
 import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -18,8 +19,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.explainmymoney.domain.model.Transaction
 import com.explainmymoney.ui.components.TransactionCard
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun HomeScreen(
     transactions: List<Transaction>,
@@ -31,7 +35,6 @@ fun HomeScreen(
     onImportFile: (Uri) -> Unit,
     onDeleteTransaction: (Long) -> Unit,
     onClearScanResult: () -> Unit,
-    hasSmsPermission: Boolean = false,
     hasEmailPermission: Boolean = false,
     isEmailScanning: Boolean = false,
     onScanEmail: () -> Unit = {},
@@ -39,6 +42,8 @@ fun HomeScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val smsPermissionState = rememberPermissionState(Manifest.permission.READ_SMS)
+    val hasSmsPermission = smsPermissionState.status.isGranted
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -93,7 +98,7 @@ fun HomeScreen(
                         if (hasSmsPermission) {
                             onScanSms(context, true)
                         } else {
-                            onNavigateToSettings()
+                            smsPermissionState.launchPermissionRequest()
                         }
                     },
                     enabled = !isLoading,

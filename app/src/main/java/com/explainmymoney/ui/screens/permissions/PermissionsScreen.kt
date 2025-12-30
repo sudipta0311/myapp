@@ -61,29 +61,31 @@ fun PermissionsScreen(
     val loginSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            try {
-                val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
-                val account = task.getResult(ApiException::class.java)
-                onLogin(account)
-                showLoginDialog = false
-            } catch (e: ApiException) {
-                onLogin(null)
-            }
+        showLoginDialog = false
+        try {
+            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+            val account = task.getResult(ApiException::class.java)
+            onLogin(account)
+        } catch (e: ApiException) {
+            // Sign-in failed or was cancelled
+            onLogin(null)
+        } catch (e: Exception) {
+            onLogin(null)
         }
     }
 
     val gmailSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            try {
-                val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
-                val account = task.getResult(ApiException::class.java)
-                onGmailSignInResult(account)
-            } catch (e: ApiException) {
-                onGmailSignInResult(null)
-            }
+        try {
+            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+            val account = task.getResult(ApiException::class.java)
+            onGmailSignInResult(account)
+        } catch (e: ApiException) {
+            // Sign-in failed or was cancelled
+            onGmailSignInResult(null)
+        } catch (e: Exception) {
+            onGmailSignInResult(null)
         }
     }
 
