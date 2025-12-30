@@ -89,9 +89,11 @@ fun MainNavigation(
             viewModel.handleGmailSignInResult(account)
         } catch (e: ApiException) {
             Log.e(TAG, "Gmail sign-in ApiException: statusCode=${e.statusCode}, message=${e.message}")
+            android.widget.Toast.makeText(navController.context, "Email ERROR: ApiException code=${e.statusCode}", android.widget.Toast.LENGTH_LONG).show()
             viewModel.handleGmailSignInResult(null)
         } catch (e: Exception) {
             Log.e(TAG, "Gmail sign-in Exception: ${e.message}", e)
+            android.widget.Toast.makeText(navController.context, "Email ERROR: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
             viewModel.handleGmailSignInResult(null)
         }
     }
@@ -124,12 +126,14 @@ fun MainNavigation(
                     onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
                     onRequestEmailPermission = {
                         Log.d(TAG, "onRequestEmailPermission called")
+                        android.widget.Toast.makeText(navController.context, "Email: Launching sign-in...", android.widget.Toast.LENGTH_SHORT).show()
                         try {
                             val intent = viewModel.getGmailSignInIntent()
                             Log.d(TAG, "Launching Gmail sign-in intent")
                             gmailSignInLauncher.launch(intent)
                         } catch (e: Exception) {
                             Log.e(TAG, "Error launching Gmail sign-in: ${e.message}", e)
+                            android.widget.Toast.makeText(navController.context, "Email ERROR: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
                         }
                     }
                 )

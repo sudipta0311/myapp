@@ -35,6 +35,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import android.util.Log
+import android.widget.Toast
 
 private const val TAG = "MainViewModel"
 
@@ -275,12 +276,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     
     fun scanSmsMessages() {
         Log.d(TAG, "scanSmsMessages() called")
+        val appContext = getApplication<Application>().applicationContext
         viewModelScope.launch {
             Log.d(TAG, "scanSmsMessages: Starting coroutine")
+            withContext(Dispatchers.Main) {
+                Toast.makeText(appContext, "Step 1: Starting SMS scan...", Toast.LENGTH_SHORT).show()
+            }
             _isLoading.value = true
             _scanResult.value = "Scanning SMS messages..."
             try {
-                val appContext = getApplication<Application>().applicationContext
                 Log.d(TAG, "scanSmsMessages: Got app context")
                 val parsedTransactions = withContext(Dispatchers.IO) {
                     Log.d(TAG, "scanSmsMessages: In IO dispatcher")
@@ -294,6 +298,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
                     val cursor: Cursor? = try {
                         Log.d(TAG, "scanSmsMessages: Querying SMS content provider")
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(appContext, "Step 2: Querying SMS...", Toast.LENGTH_SHORT).show()
+                        }
                         appContext.contentResolver.query(
                             smsUri,
                             projection,
@@ -303,6 +310,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         )
                     } catch (e: SecurityException) {
                         Log.e(TAG, "scanSmsMessages: SecurityException - ${e.message}")
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(appContext, "ERROR: SMS permission denied!", Toast.LENGTH_LONG).show()
+                        }
                         _scanResult.value = "SMS permission required"
                         null
                     }
@@ -337,16 +347,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 Log.d(TAG, "scanSmsMessages: Parsed ${parsedTransactions.size} transactions")
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(appContext, "Step 3: Found ${parsedTransactions.size} transactions", Toast.LENGTH_SHORT).show()
+                }
                 if (parsedTransactions.isNotEmpty()) {
                     repository.insertTransactions(parsedTransactions)
                     loadAnalytics()
                     _scanResult.value = "Found ${parsedTransactions.size} transaction SMS messages"
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(appContext, "SUCCESS: Saved ${parsedTransactions.size} transactions!", Toast.LENGTH_LONG).show()
+                    }
                 } else {
                     _scanResult.value = "No transaction messages found"
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(appContext, "No transaction SMS found", Toast.LENGTH_SHORT).show()
+                    }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "scanSmsMessages: Exception - ${e.message}", e)
                 _scanResult.value = "Error scanning SMS: ${e.message ?: "Unknown error"}"
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(appContext, "ERROR: ${e.message}", Toast.LENGTH_LONG).show()
+                }
             }
             _isLoading.value = false
             Log.d(TAG, "scanSmsMessages: Completed")
@@ -467,6 +489,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     
     fun getGmailSignInIntent(): Intent {
         Log.d(TAG, "getGmailSignInIntent() called")
+        val appContext = getApplication<Application>().applicationContext
+        Toast.makeText(appContext, "Email: Getting sign-in intent...", Toast.LENGTH_SHORT).show()
         val intent = gmailReader.getSignInIntent()
         Log.d(TAG, "getGmailSignInIntent: Got intent, action=${intent.action}")
         return intent
@@ -474,7 +498,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     
     fun handleGmailSignInResult(account: GoogleSignInAccount?) {
         Log.d(TAG, "handleGmailSignInResult() called, account=${account?.email ?: "null"}")
+        val appContext = getApplication<Application>().applicationContext
         viewModelScope.launch {
+            withContext(Dispatchers.Main) {
+                Toast.makeText(appContext, "Email: Processing sign-in result...", Toast.LENGTH_SHORT).show()
+            }
             Log.d(TAG, "handleGmailSignInResult: Calling gmailReader.handleSignInResult")
             val success = gmailReader.handleSignInResult(account)
             Log.d(TAG, "handleGmailSignInResult: success=$success")
@@ -483,8 +511,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _isGmailConnected.value = true
                 userSettingsDao.updateGmailStatus(true, account.email)
                 Log.d(TAG, "handleGmailSignInResult: State updated successfully")
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(appContext, "SUCCESS: Connected to ${account.email}", Toast.LENGTH_LONG).show()
+                }
             } else {
                 Log.e(TAG, "handleGmailSignInResult: Failed - success=$success, account=${account?.email}")
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(appContext, "ERROR: Email sign-in failed (account=${account?.email}, success=$success)", Toast.LENGTH_LONG).show()
+                }
             }
         }
     }
