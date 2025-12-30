@@ -2,6 +2,7 @@ package com.explainmymoney.ui.screens.home
 
 import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -17,13 +18,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import com.explainmymoney.domain.model.Transaction
 import com.explainmymoney.ui.components.TransactionCard
-import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.isGranted
-import com.google.accompanist.permissions.rememberPermissionState
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     transactions: List<Transaction>,
@@ -39,22 +38,25 @@ fun HomeScreen(
     isEmailScanning: Boolean = false,
     onScanEmail: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
+    onRequestEmailPermission: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val smsPermissionState = rememberPermissionState(Manifest.permission.READ_SMS)
-    val hasSmsPermission = smsPermissionState.status.isGranted
-    var pendingSmsScan by remember { mutableStateOf(false) }
     
-    // Auto-trigger SMS scan when permission is granted after requesting
-    LaunchedEffect(hasSmsPermission, pendingSmsScan) {
-        if (hasSmsPermission && pendingSmsScan) {
-            pendingSmsScan = false
-            try {
-                onScanSms(context, true)
-            } catch (e: Exception) {
-                // Handle error silently
-            }
+    // Check SMS permission using ContextCompat
+    var hasSmsPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+    
+    // SMS permission launcher
+    val smsPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        hasSmsPermission = isGranted
+        if (isGranted) {
+            onScanSms(context, true)
         }
     }
 
@@ -128,15 +130,10 @@ fun HomeScreen(
                 // Scan SMS Button
                 Button(
                     onClick = { 
-                        try {
-                            if (hasSmsPermission) {
-                                onScanSms(context, true)
-                            } else {
-                                pendingSmsScan = true
-                                smsPermissionState.launchPermissionRequest()
-                            }
-                        } catch (e: Exception) {
-                            // Handle error
+                        if (hasSmsPermission) {
+                            onScanSms(context, true)
+                        } else {
+                            smsPermissionLauncher.launch(Manifest.permission.READ_SMS)
                         }
                     },
                     enabled = !isLoading,
@@ -171,7 +168,7 @@ fun HomeScreen(
                         if (hasEmailPermission) {
                             onScanEmail()
                         } else {
-                            onNavigateToSettings()
+                            onRequestEmailPermission()
                         }
                     },
                     enabled = !isLoading,

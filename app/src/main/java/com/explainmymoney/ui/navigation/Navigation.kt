@@ -1,5 +1,8 @@
 package com.explainmymoney.ui.navigation
 
+import android.app.Activity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -14,7 +17,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import android.content.Intent
+import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
+import com.google.android.gms.common.api.ApiException
 import com.explainmymoney.domain.slm.SlmDownloadState
 import com.explainmymoney.ui.screens.analytics.AnalyticsScreen
 import com.explainmymoney.ui.screens.chat.ChatScreen
@@ -68,6 +73,19 @@ fun MainNavigation(
     val totalIncomeThisYear by viewModel.totalIncomeThisYear.collectAsState()
     val totalInvestedThisYear by viewModel.totalInvestedThisYear.collectAsState()
 
+    // Gmail sign-in launcher for HomeScreen email permission
+    val gmailSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        try {
+            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+            val account = task.getResult(ApiException::class.java)
+            viewModel.handleGmailSignInResult(account)
+        } catch (e: Exception) {
+            viewModel.handleGmailSignInResult(null)
+        }
+    }
+
     Scaffold(
         bottomBar = {
             BottomNavigationBar(navController = navController)
@@ -95,7 +113,15 @@ fun MainNavigation(
                     hasEmailPermission = isGmailConnected,
                     isEmailScanning = isGmailScanning,
                     onScanEmail = { viewModel.scanGmailEmails() },
-                    onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
+                    onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
+                    onRequestEmailPermission = {
+                        try {
+                            val intent = viewModel.getGmailSignInIntent()
+                            gmailSignInLauncher.launch(intent)
+                        } catch (e: Exception) {
+                            // Handle error
+                        }
+                    }
                 )
             }
             composable(Screen.Analytics.route) {
