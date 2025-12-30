@@ -100,6 +100,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         Log.d(TAG, message)
     }
     
+    fun addDebugMessagePublic(message: String) {
+        addDebugMessage(message)
+    }
+    
     fun clearDebugMessages() {
         _debugMessages.value = emptyList()
     }
@@ -289,105 +293,125 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
     
     fun scanSmsMessages() {
-        addDebugMessage("SMS: scanSmsMessages() called")
-        val appContext = getApplication<Application>().applicationContext
-        viewModelScope.launch {
-            addDebugMessage("SMS: Starting coroutine")
-            withContext(Dispatchers.Main) {
-                Toast.makeText(appContext, "Step 1: Starting SMS scan...", Toast.LENGTH_SHORT).show()
+        try {
+            addDebugMessage("SMS: scanSmsMessages() called")
+            val appContext = getApplication<Application>().applicationContext
+            
+            // Check permission first
+            val hasPermission = android.content.pm.PackageManager.PERMISSION_GRANTED == 
+                androidx.core.content.ContextCompat.checkSelfPermission(appContext, android.Manifest.permission.READ_SMS)
+            addDebugMessage("SMS: Permission check = $hasPermission")
+            
+            if (!hasPermission) {
+                addDebugMessage("SMS ERROR: No SMS permission")
+                _scanResult.value = "SMS permission required"
+                Toast.makeText(appContext, "SMS permission not granted", Toast.LENGTH_LONG).show()
+                return
             }
-            _isLoading.value = true
-            _scanResult.value = "Scanning SMS messages..."
-            try {
-                addDebugMessage("SMS: Got app context")
-                val parsedTransactions = withContext(Dispatchers.IO) {
-                    addDebugMessage("SMS: In IO dispatcher")
-                    val smsUri = Telephony.Sms.CONTENT_URI
-                    val projection = arrayOf(
-                        Telephony.Sms._ID,
-                        Telephony.Sms.ADDRESS,
-                        Telephony.Sms.BODY,
-                        Telephony.Sms.DATE
-                    )
-
-                    val cursor: Cursor? = try {
-                        addDebugMessage("SMS: Querying SMS content provider")
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(appContext, "Step 2: Querying SMS...", Toast.LENGTH_SHORT).show()
-                        }
-                        appContext.contentResolver.query(
-                            smsUri,
-                            projection,
-                            null,
-                            null,
-                            "${Telephony.Sms.DATE} DESC LIMIT 500"
+            
+            viewModelScope.launch {
+                addDebugMessage("SMS: Starting coroutine")
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(appContext, "Step 1: Starting SMS scan...", Toast.LENGTH_SHORT).show()
+                }
+                _isLoading.value = true
+                _scanResult.value = "Scanning SMS messages..."
+                try {
+                    addDebugMessage("SMS: Got app context")
+                    val parsedTransactions = withContext(Dispatchers.IO) {
+                        addDebugMessage("SMS: In IO dispatcher")
+                        val smsUri = Telephony.Sms.CONTENT_URI
+                        addDebugMessage("SMS: URI = $smsUri")
+                        val projection = arrayOf(
+                            Telephony.Sms._ID,
+                            Telephony.Sms.ADDRESS,
+                            Telephony.Sms.BODY,
+                            Telephony.Sms.DATE
                         )
-                    } catch (e: SecurityException) {
-                        addDebugMessage("SMS ERROR: SecurityException - ${e.message}")
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(appContext, "ERROR: SMS permission denied!", Toast.LENGTH_LONG).show()
-                        }
-                        _scanResult.value = "SMS permission required"
-                        null
-                    }
 
-                    addDebugMessage("SMS: Cursor obtained, is null: ${cursor == null}")
-                    val transactions = mutableListOf<Transaction>()
-                    cursor?.use {
-                        val addressIndex = it.getColumnIndex(Telephony.Sms.ADDRESS)
-                        val bodyIndex = it.getColumnIndex(Telephony.Sms.BODY)
-                        val dateIndex = it.getColumnIndex(Telephony.Sms.DATE)
-                        addDebugMessage("SMS: Column indices - addr:$addressIndex, body:$bodyIndex, date:$dateIndex")
-
-                        if (addressIndex < 0 || bodyIndex < 0 || dateIndex < 0) {
-                            addDebugMessage("SMS ERROR: Invalid column indices")
-                            return@use
+                        val cursor: Cursor? = try {
+                            addDebugMessage("SMS: Querying SMS content provider")
+                            appContext.contentResolver.query(
+                                smsUri,
+                                projection,
+                                null,
+                                null,
+                                "${Telephony.Sms.DATE} DESC LIMIT 500"
+                            )
+                        } catch (e: SecurityException) {
+                            addDebugMessage("SMS ERROR: SecurityException - ${e.message}")
+                            null
+                        } catch (e: Exception) {
+                            addDebugMessage("SMS ERROR: Query exception - ${e.javaClass.simpleName}: ${e.message}")
+                            null
                         }
 
-                        var smsCount = 0
-                        while (it.moveToNext()) {
-                            smsCount++
-                            val address = it.getString(addressIndex) ?: continue
-                            val body = it.getString(bodyIndex) ?: continue
-                            val date = it.getLong(dateIndex)
+                        addDebugMessage("SMS: Cursor obtained, is null: ${cursor == null}")
+                        val transactions = mutableListOf<Transaction>()
+                        cursor?.use {
+                            addDebugMessage("SMS: Cursor count = ${it.count}")
+                            val addressIndex = it.getColumnIndex(Telephony.Sms.ADDRESS)
+                            val bodyIndex = it.getColumnIndex(Telephony.Sms.BODY)
+                            val dateIndex = it.getColumnIndex(Telephony.Sms.DATE)
+                            addDebugMessage("SMS: Column indices - addr:$addressIndex, body:$bodyIndex, date:$dateIndex")
 
-                            smsParser.parseTransactionSms(address, body, date)?.let { tx ->
-                                transactions.add(tx)
+                            if (addressIndex < 0 || bodyIndex < 0 || dateIndex < 0) {
+                                addDebugMessage("SMS ERROR: Invalid column indices")
+                                return@use
                             }
-                        }
-                        addDebugMessage("SMS: Processed $smsCount SMS, found ${transactions.size} transactions")
-                    }
-                    transactions
-                }
 
-                addDebugMessage("SMS: Parsed ${parsedTransactions.size} transactions total")
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(appContext, "Step 3: Found ${parsedTransactions.size} transactions", Toast.LENGTH_SHORT).show()
-                }
-                if (parsedTransactions.isNotEmpty()) {
-                    repository.insertTransactions(parsedTransactions)
-                    loadAnalytics()
-                    _scanResult.value = "Found ${parsedTransactions.size} transaction SMS messages"
-                    addDebugMessage("SMS SUCCESS: Saved ${parsedTransactions.size} transactions")
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(appContext, "SUCCESS: Saved ${parsedTransactions.size} transactions!", Toast.LENGTH_LONG).show()
+                            var smsCount = 0
+                            while (it.moveToNext()) {
+                                smsCount++
+                                try {
+                                    val address = it.getString(addressIndex) ?: continue
+                                    val body = it.getString(bodyIndex) ?: continue
+                                    val date = it.getLong(dateIndex)
+
+                                    smsParser.parseTransactionSms(address, body, date)?.let { tx ->
+                                        transactions.add(tx)
+                                    }
+                                } catch (e: Exception) {
+                                    addDebugMessage("SMS ERROR: Parse error at $smsCount - ${e.message}")
+                                }
+                            }
+                            addDebugMessage("SMS: Processed $smsCount SMS, found ${transactions.size} transactions")
+                        }
+                        transactions
                     }
-                } else {
-                    _scanResult.value = "No transaction messages found"
-                    addDebugMessage("SMS: No transaction SMS found")
+
+                    addDebugMessage("SMS: Parsed ${parsedTransactions.size} transactions total")
                     withContext(Dispatchers.Main) {
-                        Toast.makeText(appContext, "No transaction SMS found", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(appContext, "Step 3: Found ${parsedTransactions.size} transactions", Toast.LENGTH_SHORT).show()
+                    }
+                    if (parsedTransactions.isNotEmpty()) {
+                        repository.insertTransactions(parsedTransactions)
+                        loadAnalytics()
+                        _scanResult.value = "Found ${parsedTransactions.size} transaction SMS messages"
+                        addDebugMessage("SMS SUCCESS: Saved ${parsedTransactions.size} transactions")
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(appContext, "SUCCESS: Saved ${parsedTransactions.size} transactions!", Toast.LENGTH_LONG).show()
+                        }
+                    } else {
+                        _scanResult.value = "No transaction messages found"
+                        addDebugMessage("SMS: No transaction SMS found")
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(appContext, "No transaction SMS found", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                } catch (e: Exception) {
+                    addDebugMessage("SMS ERROR: Coroutine exception - ${e.javaClass.simpleName}: ${e.message}")
+                    _scanResult.value = "Error scanning SMS: ${e.message ?: "Unknown error"}"
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(appContext, "ERROR: ${e.message}", Toast.LENGTH_LONG).show()
                     }
                 }
-            } catch (e: Exception) {
-                addDebugMessage("SMS ERROR: Exception - ${e.message}")
-                _scanResult.value = "Error scanning SMS: ${e.message ?: "Unknown error"}"
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(appContext, "ERROR: ${e.message}", Toast.LENGTH_LONG).show()
-                }
+                _isLoading.value = false
+                addDebugMessage("SMS: Completed")
             }
-            _isLoading.value = false
-            addDebugMessage("SMS: Completed")
+        } catch (e: Exception) {
+            addDebugMessage("SMS ERROR: Outer exception - ${e.javaClass.simpleName}: ${e.message}")
+            _scanResult.value = "Error: ${e.message}"
         }
     }
     
