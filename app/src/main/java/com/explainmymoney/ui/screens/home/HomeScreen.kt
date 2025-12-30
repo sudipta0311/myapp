@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.explainmymoney.domain.model.Transaction
+import com.explainmymoney.ui.components.DebugPanel
 import com.explainmymoney.ui.components.TransactionCard
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -38,6 +39,8 @@ fun HomeScreen(
     onScanEmail: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
     onRequestEmailPermission: () -> Unit = {},
+    debugMessages: List<String> = emptyList(),
+    onClearDebugMessages: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -260,6 +263,12 @@ fun HomeScreen(
                     }
                 }
             }
+
+            // Debug Panel - shows detailed debug messages
+            DebugPanel(
+                debugMessages = debugMessages,
+                onClearMessages = onClearDebugMessages
+            )
 
             Row(
                 modifier = Modifier

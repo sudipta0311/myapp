@@ -90,6 +90,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isGmailConnected = MutableStateFlow(false)
     val isGmailConnected: StateFlow<Boolean> = _isGmailConnected.asStateFlow()
     
+    // Debug messages for on-screen debugging
+    private val _debugMessages = MutableStateFlow<List<String>>(emptyList())
+    val debugMessages: StateFlow<List<String>> = _debugMessages.asStateFlow()
+    
+    private fun addDebugMessage(message: String) {
+        val timestamp = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.getDefault()).format(java.util.Date())
+        _debugMessages.value = _debugMessages.value + "[$timestamp] $message"
+        Log.d(TAG, message)
+    }
+    
+    fun clearDebugMessages() {
+        _debugMessages.value = emptyList()
+    }
+    
     private val _totalSpentThisYear = MutableStateFlow(0.0)
     val totalSpentThisYear: StateFlow<Double> = _totalSpentThisYear.asStateFlow()
     
@@ -275,19 +289,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
     
     fun scanSmsMessages() {
-        Log.d(TAG, "scanSmsMessages() called")
+        addDebugMessage("SMS: scanSmsMessages() called")
         val appContext = getApplication<Application>().applicationContext
         viewModelScope.launch {
-            Log.d(TAG, "scanSmsMessages: Starting coroutine")
+            addDebugMessage("SMS: Starting coroutine")
             withContext(Dispatchers.Main) {
                 Toast.makeText(appContext, "Step 1: Starting SMS scan...", Toast.LENGTH_SHORT).show()
             }
             _isLoading.value = true
             _scanResult.value = "Scanning SMS messages..."
             try {
-                Log.d(TAG, "scanSmsMessages: Got app context")
+                addDebugMessage("SMS: Got app context")
                 val parsedTransactions = withContext(Dispatchers.IO) {
-                    Log.d(TAG, "scanSmsMessages: In IO dispatcher")
+                    addDebugMessage("SMS: In IO dispatcher")
                     val smsUri = Telephony.Sms.CONTENT_URI
                     val projection = arrayOf(
                         Telephony.Sms._ID,
@@ -297,7 +311,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     )
 
                     val cursor: Cursor? = try {
-                        Log.d(TAG, "scanSmsMessages: Querying SMS content provider")
+                        addDebugMessage("SMS: Querying SMS content provider")
                         withContext(Dispatchers.Main) {
                             Toast.makeText(appContext, "Step 2: Querying SMS...", Toast.LENGTH_SHORT).show()
                         }
@@ -309,7 +323,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             "${Telephony.Sms.DATE} DESC LIMIT 500"
                         )
                     } catch (e: SecurityException) {
-                        Log.e(TAG, "scanSmsMessages: SecurityException - ${e.message}")
+                        addDebugMessage("SMS ERROR: SecurityException - ${e.message}")
                         withContext(Dispatchers.Main) {
                             Toast.makeText(appContext, "ERROR: SMS permission denied!", Toast.LENGTH_LONG).show()
                         }
@@ -317,16 +331,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         null
                     }
 
-                    Log.d(TAG, "scanSmsMessages: Cursor obtained, is null: ${cursor == null}")
+                    addDebugMessage("SMS: Cursor obtained, is null: ${cursor == null}")
                     val transactions = mutableListOf<Transaction>()
                     cursor?.use {
                         val addressIndex = it.getColumnIndex(Telephony.Sms.ADDRESS)
                         val bodyIndex = it.getColumnIndex(Telephony.Sms.BODY)
                         val dateIndex = it.getColumnIndex(Telephony.Sms.DATE)
-                        Log.d(TAG, "scanSmsMessages: Column indices - address:$addressIndex, body:$bodyIndex, date:$dateIndex")
+                        addDebugMessage("SMS: Column indices - addr:$addressIndex, body:$bodyIndex, date:$dateIndex")
 
                         if (addressIndex < 0 || bodyIndex < 0 || dateIndex < 0) {
-                            Log.e(TAG, "scanSmsMessages: Invalid column indices")
+                            addDebugMessage("SMS ERROR: Invalid column indices")
                             return@use
                         }
 
@@ -341,12 +355,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 transactions.add(tx)
                             }
                         }
-                        Log.d(TAG, "scanSmsMessages: Processed $smsCount SMS, found ${transactions.size} transactions")
+                        addDebugMessage("SMS: Processed $smsCount SMS, found ${transactions.size} transactions")
                     }
                     transactions
                 }
 
-                Log.d(TAG, "scanSmsMessages: Parsed ${parsedTransactions.size} transactions")
+                addDebugMessage("SMS: Parsed ${parsedTransactions.size} transactions total")
                 withContext(Dispatchers.Main) {
                     Toast.makeText(appContext, "Step 3: Found ${parsedTransactions.size} transactions", Toast.LENGTH_SHORT).show()
                 }
@@ -354,24 +368,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     repository.insertTransactions(parsedTransactions)
                     loadAnalytics()
                     _scanResult.value = "Found ${parsedTransactions.size} transaction SMS messages"
+                    addDebugMessage("SMS SUCCESS: Saved ${parsedTransactions.size} transactions")
                     withContext(Dispatchers.Main) {
                         Toast.makeText(appContext, "SUCCESS: Saved ${parsedTransactions.size} transactions!", Toast.LENGTH_LONG).show()
                     }
                 } else {
                     _scanResult.value = "No transaction messages found"
+                    addDebugMessage("SMS: No transaction SMS found")
                     withContext(Dispatchers.Main) {
                         Toast.makeText(appContext, "No transaction SMS found", Toast.LENGTH_SHORT).show()
                     }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "scanSmsMessages: Exception - ${e.message}", e)
+                addDebugMessage("SMS ERROR: Exception - ${e.message}")
                 _scanResult.value = "Error scanning SMS: ${e.message ?: "Unknown error"}"
                 withContext(Dispatchers.Main) {
                     Toast.makeText(appContext, "ERROR: ${e.message}", Toast.LENGTH_LONG).show()
                 }
             }
             _isLoading.value = false
-            Log.d(TAG, "scanSmsMessages: Completed")
+            addDebugMessage("SMS: Completed")
         }
     }
     
@@ -480,42 +496,42 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     
     // Gmail functions
     fun checkGmailConnected(): Boolean {
-        Log.d(TAG, "checkGmailConnected() called")
+        addDebugMessage("EMAIL: checkGmailConnected() called")
         val connected = gmailReader.isAuthenticated()
-        Log.d(TAG, "checkGmailConnected: isAuthenticated=$connected")
+        addDebugMessage("EMAIL: isAuthenticated=$connected")
         _isGmailConnected.value = connected
         return connected
     }
     
     fun getGmailSignInIntent(): Intent {
-        Log.d(TAG, "getGmailSignInIntent() called")
+        addDebugMessage("EMAIL: getGmailSignInIntent() called")
         val appContext = getApplication<Application>().applicationContext
         Toast.makeText(appContext, "Email: Getting sign-in intent...", Toast.LENGTH_SHORT).show()
         val intent = gmailReader.getSignInIntent()
-        Log.d(TAG, "getGmailSignInIntent: Got intent, action=${intent.action}")
+        addDebugMessage("EMAIL: Got intent, action=${intent.action}")
         return intent
     }
     
     fun handleGmailSignInResult(account: GoogleSignInAccount?) {
-        Log.d(TAG, "handleGmailSignInResult() called, account=${account?.email ?: "null"}")
+        addDebugMessage("EMAIL: handleGmailSignInResult() called, account=${account?.email ?: "null"}")
         val appContext = getApplication<Application>().applicationContext
         viewModelScope.launch {
             withContext(Dispatchers.Main) {
                 Toast.makeText(appContext, "Email: Processing sign-in result...", Toast.LENGTH_SHORT).show()
             }
-            Log.d(TAG, "handleGmailSignInResult: Calling gmailReader.handleSignInResult")
+            addDebugMessage("EMAIL: Calling gmailReader.handleSignInResult")
             val success = gmailReader.handleSignInResult(account)
-            Log.d(TAG, "handleGmailSignInResult: success=$success")
+            addDebugMessage("EMAIL: handleSignInResult returned success=$success")
             if (success && account != null) {
-                Log.d(TAG, "handleGmailSignInResult: Updating state - connected=true, email=${account.email}")
+                addDebugMessage("EMAIL: Updating state - connected=true, email=${account.email}")
                 _isGmailConnected.value = true
                 userSettingsDao.updateGmailStatus(true, account.email)
-                Log.d(TAG, "handleGmailSignInResult: State updated successfully")
+                addDebugMessage("EMAIL SUCCESS: State updated successfully")
                 withContext(Dispatchers.Main) {
                     Toast.makeText(appContext, "SUCCESS: Connected to ${account.email}", Toast.LENGTH_LONG).show()
                 }
             } else {
-                Log.e(TAG, "handleGmailSignInResult: Failed - success=$success, account=${account?.email}")
+                addDebugMessage("EMAIL ERROR: Failed - success=$success, account=${account?.email}")
                 withContext(Dispatchers.Main) {
                     Toast.makeText(appContext, "ERROR: Email sign-in failed (account=${account?.email}, success=$success)", Toast.LENGTH_LONG).show()
                 }

@@ -75,6 +75,7 @@ fun MainNavigation(
     val totalSpentThisYear by viewModel.totalSpentThisYear.collectAsState()
     val totalIncomeThisYear by viewModel.totalIncomeThisYear.collectAsState()
     val totalInvestedThisYear by viewModel.totalInvestedThisYear.collectAsState()
+    val debugMessages by viewModel.debugMessages.collectAsState()
 
     // Gmail sign-in launcher for HomeScreen email permission
     val gmailSignInLauncher = rememberLauncherForActivityResult(
@@ -135,7 +136,9 @@ fun MainNavigation(
                             Log.e(TAG, "Error launching Gmail sign-in: ${e.message}", e)
                             android.widget.Toast.makeText(navController.context, "Email ERROR: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
                         }
-                    }
+                    },
+                    debugMessages = debugMessages,
+                    onClearDebugMessages = { viewModel.clearDebugMessages() }
                 )
             }
             composable(Screen.Analytics.route) {
