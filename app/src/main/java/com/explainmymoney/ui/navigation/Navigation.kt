@@ -63,6 +63,7 @@ fun MainNavigation(
     val slmDownloadProgress by viewModel.slmDownloadProgress.collectAsState()
     val slmIsReady by viewModel.slmIsReady.collectAsState()
     val isGmailScanning by viewModel.isGmailScanning.collectAsState()
+    val isGmailConnected by viewModel.isGmailConnected.collectAsState()
     val totalSpentThisYear by viewModel.totalSpentThisYear.collectAsState()
     val totalIncomeThisYear by viewModel.totalIncomeThisYear.collectAsState()
     val totalInvestedThisYear by viewModel.totalInvestedThisYear.collectAsState()
@@ -91,7 +92,7 @@ fun MainNavigation(
                     onImportFile = { uri -> viewModel.parseStatementFile(uri) },
                     onDeleteTransaction = { id -> viewModel.deleteTransaction(id) },
                     onClearScanResult = { viewModel.clearScanResult() },
-                    hasEmailPermission = viewModel.isGmailConnected(),
+                    hasEmailPermission = isGmailConnected,
                     isEmailScanning = isGmailScanning,
                     onScanEmail = { viewModel.scanGmailEmails() },
                     onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
@@ -149,7 +150,9 @@ fun MainNavigation(
                     onDownloadSlm = { viewModel.downloadSlmModel() },
                     onDeleteSlm = { viewModel.deleteSlmModel() },
                     onGetGmailSignInIntent = { viewModel.getGmailSignInIntent() },
-                    onGmailSignInResult = { account -> viewModel.handleGmailSignInResult(account) }
+                    onGmailSignInResult = { account -> viewModel.handleGmailSignInResult(account) },
+                    isGmailConnected = isGmailConnected,
+                    gmailEmail = userSettings?.gmailEmail
                 )
             }
         }

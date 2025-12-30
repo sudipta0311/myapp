@@ -83,6 +83,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isGmailScanning = MutableStateFlow(false)
     val isGmailScanning: StateFlow<Boolean> = _isGmailScanning.asStateFlow()
     
+    private val _isGmailConnected = MutableStateFlow(false)
+    val isGmailConnected: StateFlow<Boolean> = _isGmailConnected.asStateFlow()
+    
     private val _totalSpentThisYear = MutableStateFlow(0.0)
     val totalSpentThisYear: StateFlow<Double> = _totalSpentThisYear.asStateFlow()
     
@@ -106,6 +109,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         loadUserSettings()
         loadAnalytics()
         loadYearlyAnalytics()
+        // Initialize Gmail connection state
+        _isGmailConnected.value = gmailReader.isAuthenticated()
     }
     
     private fun loadUserSettings() {
@@ -432,8 +437,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
     
     // Gmail functions
-    fun isGmailConnected(): Boolean {
-        return gmailReader.isAuthenticated()
+    fun checkGmailConnected(): Boolean {
+        val connected = gmailReader.isAuthenticated()
+        _isGmailConnected.value = connected
+        return connected
     }
     
     fun getGmailSignInIntent() = gmailReader.getSignInIntent()
@@ -442,6 +449,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val success = gmailReader.handleSignInResult(account)
             if (success && account != null) {
+                _isGmailConnected.value = true
                 userSettingsDao.updateGmailStatus(true, account.email)
             }
         }

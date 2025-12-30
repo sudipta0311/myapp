@@ -44,6 +44,19 @@ fun HomeScreen(
     val context = LocalContext.current
     val smsPermissionState = rememberPermissionState(Manifest.permission.READ_SMS)
     val hasSmsPermission = smsPermissionState.status.isGranted
+    var pendingSmsScan by remember { mutableStateOf(false) }
+    
+    // Auto-trigger SMS scan when permission is granted after requesting
+    LaunchedEffect(hasSmsPermission, pendingSmsScan) {
+        if (hasSmsPermission && pendingSmsScan) {
+            pendingSmsScan = false
+            try {
+                onScanSms(context, true)
+            } catch (e: Exception) {
+                // Handle error silently
+            }
+        }
+    }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -95,10 +108,15 @@ fun HomeScreen(
                 // Scan SMS Button
                 Button(
                     onClick = { 
-                        if (hasSmsPermission) {
-                            onScanSms(context, true)
-                        } else {
-                            smsPermissionState.launchPermissionRequest()
+                        try {
+                            if (hasSmsPermission) {
+                                onScanSms(context, true)
+                            } else {
+                                pendingSmsScan = true
+                                smsPermissionState.launchPermissionRequest()
+                            }
+                        } catch (e: Exception) {
+                            // Handle error
                         }
                     },
                     enabled = !isLoading,

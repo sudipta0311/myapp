@@ -50,6 +50,8 @@ fun PermissionsScreen(
     onDeleteSlm: () -> Unit,
     onGetGmailSignInIntent: () -> Intent = { Intent() },
     onGmailSignInResult: (GoogleSignInAccount?) -> Unit = {},
+    isGmailConnected: Boolean = false,
+    gmailEmail: String? = null,
     modifier: Modifier = Modifier
 ) {
     val smsPermission = rememberPermissionState(Manifest.permission.READ_SMS)
@@ -311,8 +313,8 @@ fun PermissionsScreen(
 
             item {
                 EmailPermissionCard(
-                    isConnected = userSettings?.gmailConnected == true,
-                    email = userSettings?.gmailEmail,
+                    isConnected = isGmailConnected,
+                    email = gmailEmail ?: userSettings?.gmailEmail,
                     onConnect = { gmailSignInLauncher.launch(onGetGmailSignInIntent()) }
                 )
             }
