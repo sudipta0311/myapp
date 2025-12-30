@@ -21,8 +21,6 @@ import android.util.Log
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.common.api.ApiException
-
-private const val TAG = "Navigation"
 import com.explainmymoney.domain.slm.SlmDownloadState
 import com.explainmymoney.ui.screens.analytics.AnalyticsScreen
 import com.explainmymoney.ui.screens.chat.ChatScreen
@@ -30,6 +28,8 @@ import com.explainmymoney.ui.screens.home.HomeScreen
 import com.explainmymoney.ui.screens.investments.InvestmentsScreen
 import com.explainmymoney.ui.screens.permissions.PermissionsScreen
 import com.explainmymoney.ui.viewmodel.MainViewModel
+
+private const val TAG = "Navigation"
 
 sealed class Screen(
     val route: String,
