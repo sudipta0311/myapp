@@ -17,9 +17,12 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import android.content.Intent
+import android.util.Log
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.common.api.ApiException
+
+private const val TAG = "Navigation"
 import com.explainmymoney.domain.slm.SlmDownloadState
 import com.explainmymoney.ui.screens.analytics.AnalyticsScreen
 import com.explainmymoney.ui.screens.chat.ChatScreen
@@ -77,11 +80,18 @@ fun MainNavigation(
     val gmailSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
+        Log.d(TAG, "Gmail sign-in result received, resultCode=${result.resultCode}")
         try {
             val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+            Log.d(TAG, "Gmail sign-in task obtained, isSuccessful=${task.isSuccessful}")
             val account = task.getResult(ApiException::class.java)
+            Log.d(TAG, "Gmail sign-in account obtained: ${account?.email}")
             viewModel.handleGmailSignInResult(account)
+        } catch (e: ApiException) {
+            Log.e(TAG, "Gmail sign-in ApiException: statusCode=${e.statusCode}, message=${e.message}")
+            viewModel.handleGmailSignInResult(null)
         } catch (e: Exception) {
+            Log.e(TAG, "Gmail sign-in Exception: ${e.message}", e)
             viewModel.handleGmailSignInResult(null)
         }
     }
@@ -113,11 +123,13 @@ fun MainNavigation(
                     onScanEmail = { viewModel.scanGmailEmails() },
                     onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
                     onRequestEmailPermission = {
+                        Log.d(TAG, "onRequestEmailPermission called")
                         try {
                             val intent = viewModel.getGmailSignInIntent()
+                            Log.d(TAG, "Launching Gmail sign-in intent")
                             gmailSignInLauncher.launch(intent)
                         } catch (e: Exception) {
-                            // Handle error
+                            Log.e(TAG, "Error launching Gmail sign-in: ${e.message}", e)
                         }
                     }
                 )

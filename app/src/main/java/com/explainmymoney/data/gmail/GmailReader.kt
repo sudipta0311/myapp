@@ -15,6 +15,9 @@ import com.google.api.services.gmail.GmailScopes
 import com.google.api.services.gmail.model.Message
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import android.util.Log
+
+private const val TAG = "GmailReader"
 
 data class EmailData(
     val id: String,
@@ -45,7 +48,9 @@ class GmailReader(private val context: Context) {
     
     fun isAuthenticated(): Boolean {
         val account = GoogleSignIn.getLastSignedInAccount(context)
-        return account != null && GoogleSignIn.hasPermissions(account, GMAIL_SCOPE)
+        val hasPermissions = account != null && GoogleSignIn.hasPermissions(account, GMAIL_SCOPE)
+        Log.d(TAG, "isAuthenticated: account=${account?.email}, hasPermissions=$hasPermissions")
+        return hasPermissions
     }
     
     fun getSignedInEmail(): String? {
@@ -53,29 +58,44 @@ class GmailReader(private val context: Context) {
     }
     
     fun getSignInIntent(): Intent {
+        Log.d(TAG, "getSignInIntent() called")
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestEmail()
             .requestScopes(GMAIL_SCOPE)
             .build()
         
         googleSignInClient = GoogleSignIn.getClient(context, gso)
+        Log.d(TAG, "getSignInIntent: Created sign-in client")
         return googleSignInClient!!.signInIntent
     }
     
     fun handleSignInResult(account: GoogleSignInAccount?): Boolean {
-        if (account == null) return false
+        Log.d(TAG, "handleSignInResult: account=${account?.email}")
+        if (account == null) {
+            Log.e(TAG, "handleSignInResult: Account is null")
+            return false
+        }
         
+        Log.d(TAG, "handleSignInResult: Setting current account and initializing Gmail service")
         currentAccount = account
-        initializeGmailService(account)
+        try {
+            initializeGmailService(account)
+            Log.d(TAG, "handleSignInResult: Gmail service initialized successfully")
+        } catch (e: Exception) {
+            Log.e(TAG, "handleSignInResult: Error initializing Gmail service: ${e.message}", e)
+            return false
+        }
         return true
     }
     
     private fun initializeGmailService(account: GoogleSignInAccount) {
+        Log.d(TAG, "initializeGmailService: account=${account.email}")
         val credential = GoogleAccountCredential.usingOAuth2(
             context,
             listOf(GmailScopes.GMAIL_READONLY)
         )
         credential.selectedAccount = account.account
+        Log.d(TAG, "initializeGmailService: Credential created, selectedAccount=${account.account?.name}")
         
         gmailService = Gmail.Builder(
             NetHttpTransport(),
@@ -84,6 +104,7 @@ class GmailReader(private val context: Context) {
         )
             .setApplicationName("Explain My Money")
             .build()
+        Log.d(TAG, "initializeGmailService: Gmail service built successfully")
     }
     
     suspend fun readTransactionEmails(maxResults: Int = 50): List<EmailData> = withContext(Dispatchers.IO) {

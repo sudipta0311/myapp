@@ -34,6 +34,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import android.util.Log
+
+private const val TAG = "MainViewModel"
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val database = AppDatabase.getDatabase(application)
@@ -271,12 +274,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
     
     fun scanSmsMessages() {
+        Log.d(TAG, "scanSmsMessages() called")
         viewModelScope.launch {
+            Log.d(TAG, "scanSmsMessages: Starting coroutine")
             _isLoading.value = true
             _scanResult.value = "Scanning SMS messages..."
             try {
                 val appContext = getApplication<Application>().applicationContext
+                Log.d(TAG, "scanSmsMessages: Got app context")
                 val parsedTransactions = withContext(Dispatchers.IO) {
+                    Log.d(TAG, "scanSmsMessages: In IO dispatcher")
                     val smsUri = Telephony.Sms.CONTENT_URI
                     val projection = arrayOf(
                         Telephony.Sms._ID,
@@ -286,6 +293,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     )
 
                     val cursor: Cursor? = try {
+                        Log.d(TAG, "scanSmsMessages: Querying SMS content provider")
                         appContext.contentResolver.query(
                             smsUri,
                             projection,
@@ -294,21 +302,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             "${Telephony.Sms.DATE} DESC LIMIT 500"
                         )
                     } catch (e: SecurityException) {
+                        Log.e(TAG, "scanSmsMessages: SecurityException - ${e.message}")
                         _scanResult.value = "SMS permission required"
                         null
                     }
 
+                    Log.d(TAG, "scanSmsMessages: Cursor obtained, is null: ${cursor == null}")
                     val transactions = mutableListOf<Transaction>()
                     cursor?.use {
                         val addressIndex = it.getColumnIndex(Telephony.Sms.ADDRESS)
                         val bodyIndex = it.getColumnIndex(Telephony.Sms.BODY)
                         val dateIndex = it.getColumnIndex(Telephony.Sms.DATE)
+                        Log.d(TAG, "scanSmsMessages: Column indices - address:$addressIndex, body:$bodyIndex, date:$dateIndex")
 
                         if (addressIndex < 0 || bodyIndex < 0 || dateIndex < 0) {
+                            Log.e(TAG, "scanSmsMessages: Invalid column indices")
                             return@use
                         }
 
+                        var smsCount = 0
                         while (it.moveToNext()) {
+                            smsCount++
                             val address = it.getString(addressIndex) ?: continue
                             val body = it.getString(bodyIndex) ?: continue
                             val date = it.getLong(dateIndex)
@@ -317,10 +331,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 transactions.add(tx)
                             }
                         }
+                        Log.d(TAG, "scanSmsMessages: Processed $smsCount SMS, found ${transactions.size} transactions")
                     }
                     transactions
                 }
 
+                Log.d(TAG, "scanSmsMessages: Parsed ${parsedTransactions.size} transactions")
                 if (parsedTransactions.isNotEmpty()) {
                     repository.insertTransactions(parsedTransactions)
                     loadAnalytics()
@@ -329,9 +345,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     _scanResult.value = "No transaction messages found"
                 }
             } catch (e: Exception) {
+                Log.e(TAG, "scanSmsMessages: Exception - ${e.message}", e)
                 _scanResult.value = "Error scanning SMS: ${e.message ?: "Unknown error"}"
             }
             _isLoading.value = false
+            Log.d(TAG, "scanSmsMessages: Completed")
         }
     }
     
@@ -440,19 +458,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     
     // Gmail functions
     fun checkGmailConnected(): Boolean {
+        Log.d(TAG, "checkGmailConnected() called")
         val connected = gmailReader.isAuthenticated()
+        Log.d(TAG, "checkGmailConnected: isAuthenticated=$connected")
         _isGmailConnected.value = connected
         return connected
     }
     
-    fun getGmailSignInIntent() = gmailReader.getSignInIntent()
+    fun getGmailSignInIntent(): Intent {
+        Log.d(TAG, "getGmailSignInIntent() called")
+        val intent = gmailReader.getSignInIntent()
+        Log.d(TAG, "getGmailSignInIntent: Got intent, action=${intent.action}")
+        return intent
+    }
     
     fun handleGmailSignInResult(account: GoogleSignInAccount?) {
+        Log.d(TAG, "handleGmailSignInResult() called, account=${account?.email ?: "null"}")
         viewModelScope.launch {
+            Log.d(TAG, "handleGmailSignInResult: Calling gmailReader.handleSignInResult")
             val success = gmailReader.handleSignInResult(account)
+            Log.d(TAG, "handleGmailSignInResult: success=$success")
             if (success && account != null) {
+                Log.d(TAG, "handleGmailSignInResult: Updating state - connected=true, email=${account.email}")
                 _isGmailConnected.value = true
                 userSettingsDao.updateGmailStatus(true, account.email)
+                Log.d(TAG, "handleGmailSignInResult: State updated successfully")
+            } else {
+                Log.e(TAG, "handleGmailSignInResult: Failed - success=$success, account=${account?.email}")
             }
         }
     }
