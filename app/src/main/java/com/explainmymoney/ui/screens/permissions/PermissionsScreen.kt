@@ -475,7 +475,12 @@ fun PermissionsScreen(
                 confirmButton = {
                     Button(
                         onClick = {
-                            loginSignInLauncher.launch(onGetLoginSignInIntent())
+                            try {
+                                val intent = onGetLoginSignInIntent()
+                                loginSignInLauncher.launch(intent)
+                            } catch (e: Exception) {
+                                showLoginDialog = false
+                            }
                         }
                     ) {
                         Icon(Icons.Default.Login, contentDescription = null, modifier = Modifier.size(18.dp))

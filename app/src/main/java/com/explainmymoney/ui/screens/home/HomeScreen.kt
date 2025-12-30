@@ -70,7 +70,7 @@ fun HomeScreen(
                 title = {
                     Column {
                         Text(
-                            text = if (userName != null) "Hi, $userName" else "Explain My Money",
+                            text = "Explain My Money",
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -82,8 +82,28 @@ fun HomeScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { }) {
-                        Icon(Icons.Default.Notifications, contentDescription = "Notifications")
+                    if (userName != null) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(end = 8.dp)
+                        ) {
+                            Text(
+                                text = userName,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Icon(
+                                Icons.Default.AccountCircle,
+                                contentDescription = "Profile",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                    } else {
+                        IconButton(onClick = { }) {
+                            Icon(Icons.Default.Notifications, contentDescription = "Notifications")
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

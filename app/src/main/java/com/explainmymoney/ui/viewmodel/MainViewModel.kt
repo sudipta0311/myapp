@@ -427,13 +427,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     
     // Login functions
     fun getLoginSignInIntent(): Intent {
-        val gso = com.google.android.gms.auth.api.signin.GoogleSignInOptions.Builder(
-            com.google.android.gms.auth.api.signin.GoogleSignInOptions.DEFAULT_SIGN_IN
-        )
-            .requestEmail()
-            .requestProfile()
-            .build()
-        return com.google.android.gms.auth.api.signin.GoogleSignIn.getClient(getApplication(), gso).signInIntent
+        return try {
+            val gso = com.google.android.gms.auth.api.signin.GoogleSignInOptions.Builder(
+                com.google.android.gms.auth.api.signin.GoogleSignInOptions.DEFAULT_SIGN_IN
+            )
+                .requestEmail()
+                .requestProfile()
+                .build()
+            com.google.android.gms.auth.api.signin.GoogleSignIn.getClient(getApplication(), gso).signInIntent
+        } catch (e: Exception) {
+            Intent()
+        }
     }
     
     // Gmail functions
