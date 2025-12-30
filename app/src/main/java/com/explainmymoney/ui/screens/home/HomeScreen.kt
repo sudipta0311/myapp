@@ -1,6 +1,5 @@
 package com.explainmymoney.ui.screens.home
 
-import android.Manifest
 import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -19,11 +18,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.explainmymoney.domain.model.Transaction
 import com.explainmymoney.ui.components.TransactionCard
-import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.isGranted
-import com.google.accompanist.permissions.rememberPermissionState
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     transactions: List<Transaction>,
@@ -35,22 +31,14 @@ fun HomeScreen(
     onImportFile: (Uri) -> Unit,
     onDeleteTransaction: (Long) -> Unit,
     onClearScanResult: () -> Unit,
+    hasSmsPermission: Boolean = false,
     hasEmailPermission: Boolean = false,
     isEmailScanning: Boolean = false,
     onScanEmail: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val smsPermissionState = rememberPermissionState(Manifest.permission.READ_SMS)
-    var pendingSmsScam by remember { mutableStateOf(false) }
-    
-    // Auto-trigger SMS scan when permission is granted after requesting
-    LaunchedEffect(smsPermissionState.status.isGranted) {
-        if (smsPermissionState.status.isGranted && pendingSmsScam) {
-            pendingSmsScam = false
-            onScanSms(context, true)
-        }
-    }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -102,19 +90,22 @@ fun HomeScreen(
                 // Scan SMS Button
                 Button(
                     onClick = { 
-                        if (!smsPermissionState.status.isGranted) {
-                            pendingSmsScam = true
-                            smsPermissionState.launchPermissionRequest()
-                        } else {
+                        if (hasSmsPermission) {
                             onScanSms(context, true)
+                        } else {
+                            onNavigateToSettings()
                         }
                     },
                     enabled = !isLoading,
                     modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (hasSmsPermission) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = if (hasSmsPermission) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 12.dp)
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        if (isLoading && !isEmailScanning) {
+                        if (isLoading && !isEmailScanning && hasSmsPermission) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(20.dp),
                                 strokeWidth = 2.dp,
@@ -124,14 +115,23 @@ fun HomeScreen(
                             Icon(Icons.Default.Sms, contentDescription = null, modifier = Modifier.size(20.dp))
                         }
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text("Scan SMS", style = MaterialTheme.typography.labelSmall)
+                        Text(
+                            text = if (hasSmsPermission) "Scan SMS" else "Enable SMS",
+                            style = MaterialTheme.typography.labelSmall
+                        )
                     }
                 }
 
                 // Scan Email Button
                 Button(
-                    onClick = onScanEmail,
-                    enabled = !isLoading && hasEmailPermission,
+                    onClick = { 
+                        if (hasEmailPermission) {
+                            onScanEmail()
+                        } else {
+                            onNavigateToSettings()
+                        }
+                    },
+                    enabled = !isLoading,
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (hasEmailPermission) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.surfaceVariant,
@@ -150,7 +150,10 @@ fun HomeScreen(
                             Icon(Icons.Default.Email, contentDescription = null, modifier = Modifier.size(20.dp))
                         }
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text(if (isEmailScanning) "Scanning..." else "Scan Email", style = MaterialTheme.typography.labelSmall)
+                        Text(
+                            text = if (isEmailScanning) "Scanning..." else if (hasEmailPermission) "Scan Email" else "Enable Email",
+                            style = MaterialTheme.typography.labelSmall
+                        )
                     }
                 }
 

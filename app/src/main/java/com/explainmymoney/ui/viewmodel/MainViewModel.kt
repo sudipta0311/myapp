@@ -414,6 +414,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return _userSettings.value?.slmEnabled == true && slmManager.isModelReady.value
     }
     
+    // Permission functions
+    fun hasSmsPermission(): Boolean {
+        return android.content.pm.PackageManager.PERMISSION_GRANTED == 
+            getApplication<Application>().checkSelfPermission(android.Manifest.permission.READ_SMS)
+    }
+    
     // Login functions
     fun getLoginSignInIntent(): Intent {
         val gso = com.google.android.gms.auth.api.signin.GoogleSignInOptions.Builder(
