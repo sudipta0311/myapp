@@ -505,6 +505,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     
     // Login functions
     fun getLoginSignInIntent(): Intent {
+        addDebugMessage("LOGIN: getLoginSignInIntent() called")
         return try {
             val gso = com.google.android.gms.auth.api.signin.GoogleSignInOptions.Builder(
                 com.google.android.gms.auth.api.signin.GoogleSignInOptions.DEFAULT_SIGN_IN
@@ -512,8 +513,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 .requestEmail()
                 .requestProfile()
                 .build()
-            com.google.android.gms.auth.api.signin.GoogleSignIn.getClient(getApplication(), gso).signInIntent
+            addDebugMessage("LOGIN: GoogleSignInOptions built")
+            val client = com.google.android.gms.auth.api.signin.GoogleSignIn.getClient(getApplication(), gso)
+            addDebugMessage("LOGIN: GoogleSignIn client created")
+            val intent = client.signInIntent
+            addDebugMessage("LOGIN: Intent created, action=${intent.action}")
+            intent
         } catch (e: Exception) {
+            addDebugMessage("LOGIN ERROR: ${e.javaClass.simpleName}: ${e.message}")
             Intent()
         }
     }
