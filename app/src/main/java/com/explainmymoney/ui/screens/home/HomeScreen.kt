@@ -42,21 +42,33 @@ fun HomeScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    var showPermissionDialog by remember { mutableStateOf(false) }
     
-    // Check SMS permission using ContextCompat
-    var hasSmsPermission by remember {
-        mutableStateOf(
-            ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
-        )
+    // Check SMS permission using ContextCompat - recheck on each recomposition
+    val hasSmsPermission = remember(context) {
+        ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
     }
+    
+    // Track if we need to re-check permission after coming back
+    var permissionRequested by remember { mutableStateOf(false) }
     
     // SMS permission launcher
     val smsPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
-        hasSmsPermission = isGranted
+        permissionRequested = false
         if (isGranted) {
             onScanSms(context, true)
+        }
+    }
+    
+    // Re-check permission when returning to app
+    LaunchedEffect(permissionRequested) {
+        if (!permissionRequested) {
+            val currentPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
+            if (currentPermission) {
+                // Permission was granted, we can scan
+            }
         }
     }
 
@@ -130,10 +142,12 @@ fun HomeScreen(
                 // Scan SMS Button
                 Button(
                     onClick = { 
-                        if (hasSmsPermission) {
+                        // Re-check permission at click time
+                        val currentPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
+                        if (currentPermission) {
                             onScanSms(context, true)
                         } else {
-                            smsPermissionLauncher.launch(Manifest.permission.READ_SMS)
+                            showPermissionDialog = true
                         }
                     },
                     enabled = !isLoading,
@@ -312,5 +326,33 @@ fun HomeScreen(
                 }
             }
         }
+    }
+    
+    // SMS Permission Dialog
+    if (showPermissionDialog) {
+        AlertDialog(
+            onDismissRequest = { showPermissionDialog = false },
+            icon = { Icon(Icons.Default.Sms, contentDescription = null) },
+            title = { Text("SMS Permission Required") },
+            text = { 
+                Text("To scan your SMS messages for transactions, the app needs permission to read SMS. This helps automatically detect bank transactions from your messages.") 
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showPermissionDialog = false
+                        permissionRequested = true
+                        smsPermissionLauncher.launch(Manifest.permission.READ_SMS)
+                    }
+                ) {
+                    Text("Grant Permission")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPermissionDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
