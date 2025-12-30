@@ -18,9 +18,6 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import android.content.Intent
 import android.util.Log
-import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.auth.api.signin.GoogleSignInAccount
-import com.google.android.gms.common.api.ApiException
 import com.explainmymoney.domain.slm.SlmDownloadState
 import com.explainmymoney.ui.screens.analytics.AnalyticsScreen
 import com.explainmymoney.ui.screens.chat.ChatScreen
@@ -77,59 +74,27 @@ fun MainNavigation(
     val totalInvestedThisYear by viewModel.totalInvestedThisYear.collectAsState()
     val debugMessages by viewModel.debugMessages.collectAsState()
 
-    // Gmail sign-in launcher for HomeScreen email permission
+    // Gmail sign-in launcher for HomeScreen email permission (using AccountPicker)
     val gmailSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         viewModel.addDebugMessagePublic("NAV: resultCode=${result.resultCode}, hasData=${result.data != null}")
         
-        // Check if result data is null
-        if (result.data == null) {
-            viewModel.addDebugMessagePublic("NAV ERROR: result.data is null - user may have canceled")
-            android.widget.Toast.makeText(navController.context, "Sign-in canceled or failed", android.widget.Toast.LENGTH_LONG).show()
-            viewModel.handleGmailSignInResult(null)
+        if (result.resultCode != android.app.Activity.RESULT_OK || result.data == null) {
+            viewModel.addDebugMessagePublic("NAV: User canceled or no data")
             return@rememberLauncherForActivityResult
         }
         
-        // resultCode: -1 = OK, 0 = CANCELED
-        if (result.resultCode == android.app.Activity.RESULT_CANCELED) {
-            viewModel.addDebugMessagePublic("NAV: resultCode=CANCELED (0)")
-        }
+        // Get account from AccountPicker result
+        val accountName = result.data?.getStringExtra(android.accounts.AccountManager.KEY_ACCOUNT_NAME)
+        val accountType = result.data?.getStringExtra(android.accounts.AccountManager.KEY_ACCOUNT_TYPE)
+        viewModel.addDebugMessagePublic("NAV: AccountPicker result - name=$accountName, type=$accountType")
         
-        try {
-            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
-            viewModel.addDebugMessagePublic("NAV: task.isSuccessful=${task.isSuccessful}")
-            
-            if (task.isSuccessful) {
-                val account = task.result
-                viewModel.addDebugMessagePublic("NAV: Got account: ${account?.email}")
-                viewModel.handleGmailSignInResult(account)
-            } else {
-                // Task failed, try to get the exception
-                try {
-                    task.getResult(ApiException::class.java)
-                } catch (e: ApiException) {
-                    viewModel.addDebugMessagePublic("NAV ERROR: ApiException code=${e.statusCode}")
-                    val errorMsg = when(e.statusCode) {
-                        12501 -> "Sign-in canceled"
-                        10 -> "OAuth config error (SHA1/package)"
-                        7 -> "Network error"
-                        4 -> "Sign-in required"
-                        12500 -> "Sign-in failed"
-                        else -> "Error code ${e.statusCode}"
-                    }
-                    android.widget.Toast.makeText(navController.context, errorMsg, android.widget.Toast.LENGTH_LONG).show()
-                }
-                viewModel.handleGmailSignInResult(null)
-            }
-        } catch (e: ApiException) {
-            viewModel.addDebugMessagePublic("NAV ERROR: ApiException code=${e.statusCode}")
-            android.widget.Toast.makeText(navController.context, "Error: ${e.statusCode}", android.widget.Toast.LENGTH_LONG).show()
-            viewModel.handleGmailSignInResult(null)
-        } catch (e: Exception) {
-            viewModel.addDebugMessagePublic("NAV ERROR: ${e.javaClass.simpleName}: ${e.message}")
-            android.widget.Toast.makeText(navController.context, "Error: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
-            viewModel.handleGmailSignInResult(null)
+        if (accountName != null) {
+            viewModel.addDebugMessagePublic("NAV SUCCESS: Selected account $accountName")
+            viewModel.handleEmailAccountResult(accountName, accountType)
+        } else {
+            viewModel.addDebugMessagePublic("NAV ERROR: No account name in result")
         }
     }
 
@@ -218,6 +183,7 @@ fun MainNavigation(
                         }
                     },
                     onGetLoginSignInIntent = { viewModel.getLoginSignInIntent() },
+                    onHandleLoginResult = { name, type -> viewModel.handleLoginResult(name, type) },
                     onLogout = { viewModel.logout() },
                     onAddDebugMessage = { msg -> viewModel.addDebugMessagePublic(msg) },
                     onCountryChange = { country -> viewModel.updateCountry(country) },

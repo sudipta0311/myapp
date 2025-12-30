@@ -503,25 +503,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             getApplication<Application>().checkSelfPermission(android.Manifest.permission.READ_SMS)
     }
     
-    // Login functions
+    // Login functions - using AccountPicker (no OAuth required)
     fun getLoginSignInIntent(): Intent {
-        addDebugMessage("LOGIN: getLoginSignInIntent() called")
+        addDebugMessage("LOGIN: getLoginSignInIntent() using AccountPicker")
         return try {
-            val gso = com.google.android.gms.auth.api.signin.GoogleSignInOptions.Builder(
-                com.google.android.gms.auth.api.signin.GoogleSignInOptions.DEFAULT_SIGN_IN
+            val intent = android.accounts.AccountManager.newChooseAccountIntent(
+                null,  // selectedAccount
+                null,  // allowableAccounts
+                arrayOf("com.google"),  // allowableAccountTypes - Google accounts only
+                null,  // descriptionOverrideText
+                null,  // addAccountAuthTokenType
+                null,  // addAccountRequiredFeatures
+                null   // addAccountOptions
             )
-                .requestEmail()
-                .requestProfile()
-                .build()
-            addDebugMessage("LOGIN: GoogleSignInOptions built")
-            val client = com.google.android.gms.auth.api.signin.GoogleSignIn.getClient(getApplication(), gso)
-            addDebugMessage("LOGIN: GoogleSignIn client created")
-            val intent = client.signInIntent
-            addDebugMessage("LOGIN: Intent created, action=${intent.action}")
+            addDebugMessage("LOGIN: AccountPicker intent created")
             intent
         } catch (e: Exception) {
             addDebugMessage("LOGIN ERROR: ${e.javaClass.simpleName}: ${e.message}")
             Intent()
+        }
+    }
+    
+    // Handle login from AccountPicker result
+    fun handleLoginResult(accountName: String?, accountType: String?) {
+        addDebugMessage("LOGIN: handleLoginResult - name=$accountName, type=$accountType")
+        if (accountName != null && accountType == "com.google") {
+            addDebugMessage("LOGIN: Valid Google account selected")
+            login(accountName, accountName, null)
+            addDebugMessage("LOGIN SUCCESS: Logged in as $accountName")
+        } else {
+            addDebugMessage("LOGIN ERROR: Invalid account - name=$accountName, type=$accountType")
         }
     }
     
@@ -535,12 +546,43 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
     
     fun getGmailSignInIntent(): Intent {
-        addDebugMessage("EMAIL: getGmailSignInIntent() called")
+        addDebugMessage("EMAIL: getGmailSignInIntent() using AccountPicker")
+        return try {
+            val intent = android.accounts.AccountManager.newChooseAccountIntent(
+                null,
+                null,
+                arrayOf("com.google"),
+                null,
+                null,
+                null,
+                null
+            )
+            addDebugMessage("EMAIL: AccountPicker intent created")
+            intent
+        } catch (e: Exception) {
+            addDebugMessage("EMAIL ERROR: ${e.javaClass.simpleName}: ${e.message}")
+            Intent()
+        }
+    }
+    
+    // Handle email sign-in from AccountPicker result
+    fun handleEmailAccountResult(accountName: String?, accountType: String?) {
+        addDebugMessage("EMAIL: handleEmailAccountResult - name=$accountName, type=$accountType")
         val appContext = getApplication<Application>().applicationContext
-        Toast.makeText(appContext, "Email: Getting sign-in intent...", Toast.LENGTH_SHORT).show()
-        val intent = gmailReader.getSignInIntent()
-        addDebugMessage("EMAIL: Got intent, action=${intent.action}")
-        return intent
+        if (accountName != null && accountType == "com.google") {
+            addDebugMessage("EMAIL: Valid Google account selected")
+            viewModelScope.launch {
+                _isGmailConnected.value = true
+                userSettingsDao.updateGmailStatus(true, accountName)
+                addDebugMessage("EMAIL SUCCESS: Connected to $accountName")
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(appContext, "Connected to $accountName", Toast.LENGTH_LONG).show()
+                }
+            }
+        } else {
+            addDebugMessage("EMAIL ERROR: Invalid account")
+            Toast.makeText(appContext, "Failed to connect email", Toast.LENGTH_LONG).show()
+        }
     }
     
     fun handleGmailSignInResult(account: GoogleSignInAccount?) {

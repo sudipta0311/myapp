@@ -38,6 +38,7 @@ fun PermissionsScreen(
     userSettings: UserSettings?,
     onLogin: (GoogleSignInAccount?) -> Unit,
     onGetLoginSignInIntent: () -> Intent = { Intent() },
+    onHandleLoginResult: (String?, String?) -> Unit = { _, _ -> },
     onLogout: () -> Unit,
     onAddDebugMessage: (String) -> Unit = {},
     onCountryChange: (Country) -> Unit,
@@ -67,34 +68,23 @@ fun PermissionsScreen(
         showLoginDialog = false
         onAddDebugMessage("LOGIN: resultCode=${result.resultCode}, hasData=${result.data != null}")
         
-        if (result.data == null) {
-            onAddDebugMessage("LOGIN ERROR: result.data is null")
-            onLogin(null)
+        if (result.resultCode != android.app.Activity.RESULT_OK || result.data == null) {
+            onAddDebugMessage("LOGIN: User canceled or no data")
             return@rememberLauncherForActivityResult
         }
         
-        try {
-            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
-            onAddDebugMessage("LOGIN: task.isSuccessful=${task.isSuccessful}")
-            
-            if (task.isSuccessful) {
-                val account = task.result
-                onAddDebugMessage("LOGIN: Got account: ${account?.email}")
-                onLogin(account)
-            } else {
-                try {
-                    task.getResult(ApiException::class.java)
-                } catch (e: ApiException) {
-                    onAddDebugMessage("LOGIN ERROR: ApiException code=${e.statusCode}")
-                }
-                onLogin(null)
-            }
-        } catch (e: ApiException) {
-            onAddDebugMessage("LOGIN ERROR: ApiException code=${e.statusCode}")
-            onLogin(null)
-        } catch (e: Exception) {
-            onAddDebugMessage("LOGIN ERROR: ${e.javaClass.simpleName}: ${e.message}")
-            onLogin(null)
+        // Get account from AccountPicker result
+        val accountName = result.data?.getStringExtra(android.accounts.AccountManager.KEY_ACCOUNT_NAME)
+        val accountType = result.data?.getStringExtra(android.accounts.AccountManager.KEY_ACCOUNT_TYPE)
+        onAddDebugMessage("LOGIN: AccountPicker result - name=$accountName, type=$accountType")
+        
+        if (accountName != null) {
+            onAddDebugMessage("LOGIN SUCCESS: Selected account $accountName")
+            // Create a simple callback with account info
+            onLogin(null) // We'll handle this differently
+            onHandleLoginResult(accountName, accountType)
+        } else {
+            onAddDebugMessage("LOGIN ERROR: No account name in result")
         }
     }
 
