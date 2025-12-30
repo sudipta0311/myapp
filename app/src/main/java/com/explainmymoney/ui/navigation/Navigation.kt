@@ -91,10 +91,9 @@ fun MainNavigation(
                     onImportFile = { uri -> viewModel.parseStatementFile(uri) },
                     onDeleteTransaction = { id -> viewModel.deleteTransaction(id) },
                     onClearScanResult = { viewModel.clearScanResult() },
-                    isGmailConnected = viewModel.isGmailConnected(),
-                    isGmailScanning = isGmailScanning,
-                    onScanGmail = { viewModel.scanGmailEmails() },
-                    onConnectEmail = { navController.navigate(Screen.Settings.route) }
+                    hasEmailPermission = viewModel.isGmailConnected(),
+                    isEmailScanning = isGmailScanning,
+                    onScanEmail = { viewModel.scanGmailEmails() }
                 )
             }
             composable(Screen.Analytics.route) {
@@ -147,12 +146,7 @@ fun MainNavigation(
                     isSlmModelDownloaded = viewModel.isSlmModelDownloaded(),
                     onToggleSlm = { enabled -> viewModel.toggleSlmEnabled(enabled) },
                     onDownloadSlm = { viewModel.downloadSlmModel() },
-                    onDeleteSlm = { viewModel.deleteSlmModel() },
-                    isGmailConnected = viewModel.isGmailConnected(),
-                    gmailEmail = userSettings?.gmailEmail,
-                    onGetGmailSignInIntent = { viewModel.getGmailSignInIntent() },
-                    onGmailSignInResult = { account -> viewModel.handleGmailSignInResult(account) },
-                    onDisconnectGmail = { viewModel.disconnectGmail() }
+                    onDeleteSlm = { viewModel.deleteSlmModel() }
                 )
             }
         }

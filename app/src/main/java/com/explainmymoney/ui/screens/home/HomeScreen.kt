@@ -35,10 +35,9 @@ fun HomeScreen(
     onImportFile: (Uri) -> Unit,
     onDeleteTransaction: (Long) -> Unit,
     onClearScanResult: () -> Unit,
-    isGmailConnected: Boolean = false,
-    isGmailScanning: Boolean = false,
-    onScanGmail: () -> Unit = {},
-    onConnectEmail: () -> Unit = {},
+    hasEmailPermission: Boolean = false,
+    isEmailScanning: Boolean = false,
+    onScanEmail: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -93,12 +92,14 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
+            // Action buttons row
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // Scan SMS Button
                 Button(
                     onClick = { 
                         if (!smsPermissionState.status.isGranted) {
@@ -109,67 +110,61 @@ fun HomeScreen(
                         }
                     },
                     enabled = !isLoading,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 12.dp)
                 ) {
-                    if (isLoading && !isGmailScanning) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onPrimary
-                        )
-                    } else {
-                        Icon(Icons.Default.Sms, contentDescription = null, modifier = Modifier.size(18.dp))
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Scan SMS")
-                }
-
-                OutlinedButton(
-                    onClick = { filePickerLauncher.launch("*/*") },
-                    enabled = !isLoading,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(Icons.Default.Upload, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Import")
-                }
-            }
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                if (isGmailConnected) {
-                    Button(
-                        onClick = onScanGmail,
-                        enabled = !isLoading,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.tertiary
-                        ),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        if (isGmailScanning) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        if (isLoading && !isEmailScanning) {
                             CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                        } else {
+                            Icon(Icons.Default.Sms, contentDescription = null, modifier = Modifier.size(20.dp))
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Scan SMS", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+
+                // Scan Email Button
+                Button(
+                    onClick = onScanEmail,
+                    enabled = !isLoading && hasEmailPermission,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (hasEmailPermission) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = if (hasEmailPermission) MaterialTheme.colorScheme.onTertiary else MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 12.dp)
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        if (isEmailScanning) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
                                 strokeWidth = 2.dp,
                                 color = MaterialTheme.colorScheme.onTertiary
                             )
                         } else {
-                            Icon(Icons.Default.Email, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.Email, contentDescription = null, modifier = Modifier.size(20.dp))
                         }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(if (isGmailScanning) "Scanning..." else "Scan Email")
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(if (isEmailScanning) "Scanning..." else "Scan Email", style = MaterialTheme.typography.labelSmall)
                     }
-                } else {
-                    OutlinedButton(
-                        onClick = onConnectEmail,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Default.Email, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Connect Email")
+                }
+
+                // Import Bank Statement Button
+                OutlinedButton(
+                    onClick = { filePickerLauncher.launch("*/*") },
+                    enabled = !isLoading,
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 12.dp)
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.Upload, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Import", style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }

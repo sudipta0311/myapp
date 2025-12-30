@@ -5,9 +5,11 @@ import android.app.Activity
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -46,18 +48,13 @@ fun PermissionsScreen(
     onToggleSlm: (Boolean) -> Unit,
     onDownloadSlm: () -> Unit,
     onDeleteSlm: () -> Unit,
-    isGmailConnected: Boolean = false,
-    gmailEmail: String? = null,
-    onGetGmailSignInIntent: () -> Intent = { Intent() },
-    onGmailSignInResult: (GoogleSignInAccount?) -> Unit = {},
-    onDisconnectGmail: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val smsPermission = rememberPermissionState(Manifest.permission.READ_SMS)
     val receiveSmsPermission = rememberPermissionState(Manifest.permission.RECEIVE_SMS)
     var showCountryPicker by remember { mutableStateOf(false) }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
-    var showGmailDisconnectConfirmation by remember { mutableStateOf(false) }
+    var showLoginDialog by remember { mutableStateOf(false) }
 
     val loginSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -67,22 +64,9 @@ fun PermissionsScreen(
                 val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
                 val account = task.getResult(ApiException::class.java)
                 onLogin(account)
+                showLoginDialog = false
             } catch (e: ApiException) {
                 onLogin(null)
-            }
-        }
-    }
-
-    val gmailSignInLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            try {
-                val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
-                val account = task.getResult(ApiException::class.java)
-                onGmailSignInResult(account)
-            } catch (e: ApiException) {
-                onGmailSignInResult(null)
             }
         }
     }
@@ -189,10 +173,13 @@ fun PermissionsScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                            Button(onClick = { loginSignInLauncher.launch(onGetLoginSignInIntent()) }) {
-                                Icon(Icons.Default.Login, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Sign In with Google")
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(onClick = { showLoginDialog = true }) {
+                                    Text("Login")
+                                }
+                                Button(onClick = { showLoginDialog = true }) {
+                                    Text("Sign Up")
+                                }
                             }
                         }
                     }
@@ -253,25 +240,6 @@ fun PermissionsScreen(
             item {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "DATA SOURCES",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            item {
-                GmailConnectionCard(
-                    isConnected = isGmailConnected,
-                    email = gmailEmail,
-                    onConnect = { gmailSignInLauncher.launch(onGetGmailSignInIntent()) },
-                    onDisconnect = { showGmailDisconnectConfirmation = true }
-                )
-            }
-
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
                     text = "AI ASSISTANT",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -320,6 +288,14 @@ fun PermissionsScreen(
                     icon = Icons.Default.NotificationsActive,
                     isGranted = receiveSmsPermission.status.isGranted,
                     onRequestPermission = { receiveSmsPermission.launchPermissionRequest() }
+                )
+            }
+
+            item {
+                EmailPermissionCard(
+                    isConnected = userSettings?.gmailConnected == true,
+                    email = userSettings?.gmailEmail,
+                    onConnect = { loginSignInLauncher.launch(onGetLoginSignInIntent()) }
                 )
             }
 
@@ -467,26 +443,28 @@ fun PermissionsScreen(
             )
         }
 
-        if (showGmailDisconnectConfirmation) {
+        // Login dialog
+        if (showLoginDialog) {
             AlertDialog(
-                onDismissRequest = { showGmailDisconnectConfirmation = false },
-                icon = { Icon(Icons.Default.Email, contentDescription = null) },
-                title = { Text("Disconnect Gmail?") },
+                onDismissRequest = { showLoginDialog = false },
+                icon = { Icon(Icons.Default.AccountCircle, contentDescription = null) },
+                title = { Text("Sign In") },
                 text = { 
-                    Text("This will revoke the app's access to your Gmail. You can reconnect anytime to scan transaction emails again.") 
+                    Text("Sign in with your Google account to sync your data across devices.") 
                 },
                 confirmButton = {
-                    TextButton(
+                    Button(
                         onClick = {
-                            onDisconnectGmail()
-                            showGmailDisconnectConfirmation = false
+                            loginSignInLauncher.launch(onGetLoginSignInIntent())
                         }
                     ) {
-                        Text("Disconnect", color = MaterialTheme.colorScheme.error)
+                        Icon(Icons.Default.Login, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Continue with Google")
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showGmailDisconnectConfirmation = false }) {
+                    TextButton(onClick = { showLoginDialog = false }) {
                         Text("Cancel")
                     }
                 }
@@ -496,11 +474,10 @@ fun PermissionsScreen(
 }
 
 @Composable
-private fun GmailConnectionCard(
+private fun EmailPermissionCard(
     isConnected: Boolean,
     email: String?,
     onConnect: () -> Unit,
-    onDisconnect: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -513,16 +490,26 @@ private fun GmailConnectionCard(
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                Icons.Default.Email,
-                contentDescription = null,
-                tint = if (isConnected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(32.dp)
-            )
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(
+                        color = if (isConnected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                        shape = CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.Email,
+                    contentDescription = null,
+                    tint = if (isConnected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Email Access",
+                    text = "Read Email Messages",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -543,21 +530,26 @@ private fun GmailConnectionCard(
                     }
                 } else {
                     Text(
-                        text = "Connect to scan transaction emails",
+                        text = "Allow access to scan transaction emails",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
             if (isConnected) {
-                TextButton(onClick = onDisconnect) {
-                    Text("Disconnect")
-                }
+                Icon(
+                    Icons.Default.CheckCircle,
+                    contentDescription = "Allowed",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
             } else {
-                Button(onClick = onConnect) {
-                    Icon(Icons.Default.Link, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Connect")
+                Button(
+                    onClick = onConnect,
+                    modifier = Modifier.height(36.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp)
+                ) {
+                    Text("Allow")
                 }
             }
         }
