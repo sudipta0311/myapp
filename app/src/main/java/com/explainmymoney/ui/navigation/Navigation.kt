@@ -207,7 +207,9 @@ fun MainNavigation(
                 PermissionsScreen(
                     userSettings = userSettings,
                     onLogin = { account ->
+                        viewModel.addDebugMessagePublic("LOGIN: onLogin callback, account=${account?.email ?: "null"}")
                         account?.let {
+                            viewModel.addDebugMessagePublic("LOGIN: Calling viewModel.login()")
                             viewModel.login(
                                 it.displayName ?: "User",
                                 it.email ?: "",
@@ -217,6 +219,7 @@ fun MainNavigation(
                     },
                     onGetLoginSignInIntent = { viewModel.getLoginSignInIntent() },
                     onLogout = { viewModel.logout() },
+                    onAddDebugMessage = { msg -> viewModel.addDebugMessagePublic(msg) },
                     onCountryChange = { country -> viewModel.updateCountry(country) },
                     deviceCapability = viewModel.checkSlmCapability(),
                     slmDownloadState = slmDownloadState,

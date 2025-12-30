@@ -39,6 +39,7 @@ fun PermissionsScreen(
     onLogin: (GoogleSignInAccount?) -> Unit,
     onGetLoginSignInIntent: () -> Intent = { Intent() },
     onLogout: () -> Unit,
+    onAddDebugMessage: (String) -> Unit = {},
     onCountryChange: (Country) -> Unit,
     deviceCapability: DeviceCapability,
     slmDownloadState: SlmDownloadState,
@@ -64,14 +65,35 @@ fun PermissionsScreen(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         showLoginDialog = false
+        onAddDebugMessage("LOGIN: resultCode=${result.resultCode}, hasData=${result.data != null}")
+        
+        if (result.data == null) {
+            onAddDebugMessage("LOGIN ERROR: result.data is null")
+            onLogin(null)
+            return@rememberLauncherForActivityResult
+        }
+        
         try {
             val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
-            val account = task.getResult(ApiException::class.java)
-            onLogin(account)
+            onAddDebugMessage("LOGIN: task.isSuccessful=${task.isSuccessful}")
+            
+            if (task.isSuccessful) {
+                val account = task.result
+                onAddDebugMessage("LOGIN: Got account: ${account?.email}")
+                onLogin(account)
+            } else {
+                try {
+                    task.getResult(ApiException::class.java)
+                } catch (e: ApiException) {
+                    onAddDebugMessage("LOGIN ERROR: ApiException code=${e.statusCode}")
+                }
+                onLogin(null)
+            }
         } catch (e: ApiException) {
-            // Sign-in failed or was cancelled
+            onAddDebugMessage("LOGIN ERROR: ApiException code=${e.statusCode}")
             onLogin(null)
         } catch (e: Exception) {
+            onAddDebugMessage("LOGIN ERROR: ${e.javaClass.simpleName}: ${e.message}")
             onLogin(null)
         }
     }
@@ -475,10 +497,13 @@ fun PermissionsScreen(
                 confirmButton = {
                     Button(
                         onClick = {
+                            onAddDebugMessage("LOGIN: Button clicked, getting sign-in intent")
                             try {
                                 val intent = onGetLoginSignInIntent()
+                                onAddDebugMessage("LOGIN: Launching sign-in intent")
                                 loginSignInLauncher.launch(intent)
                             } catch (e: Exception) {
+                                onAddDebugMessage("LOGIN ERROR: Failed to launch: ${e.message}")
                                 showLoginDialog = false
                             }
                         }
