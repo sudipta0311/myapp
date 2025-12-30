@@ -81,33 +81,54 @@ fun MainNavigation(
     val gmailSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        viewModel.addDebugMessagePublic("NAV: Sign-in result received, resultCode=${result.resultCode}")
+        viewModel.addDebugMessagePublic("NAV: resultCode=${result.resultCode}, hasData=${result.data != null}")
+        
+        // Check if result data is null
+        if (result.data == null) {
+            viewModel.addDebugMessagePublic("NAV ERROR: result.data is null - user may have canceled")
+            android.widget.Toast.makeText(navController.context, "Sign-in canceled or failed", android.widget.Toast.LENGTH_LONG).show()
+            viewModel.handleGmailSignInResult(null)
+            return@rememberLauncherForActivityResult
+        }
+        
         // resultCode: -1 = OK, 0 = CANCELED
         if (result.resultCode == android.app.Activity.RESULT_CANCELED) {
-            viewModel.addDebugMessagePublic("NAV: User canceled sign-in or error occurred")
+            viewModel.addDebugMessagePublic("NAV: resultCode=CANCELED (0)")
         }
+        
         try {
             val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
-            viewModel.addDebugMessagePublic("NAV: Task isSuccessful=${task.isSuccessful}, isComplete=${task.isComplete}")
-            val account = task.getResult(ApiException::class.java)
-            viewModel.addDebugMessagePublic("NAV: Account obtained: ${account?.email}")
-            viewModel.handleGmailSignInResult(account)
-        } catch (e: ApiException) {
-            // Status codes: 4=SIGN_IN_REQUIRED, 7=NETWORK_ERROR, 10=DEVELOPER_ERROR, 12501=CANCELED
-            viewModel.addDebugMessagePublic("NAV ERROR: ApiException code=${e.statusCode}")
-            val errorMsg = when(e.statusCode) {
-                12501 -> "Sign-in canceled by user"
-                10 -> "Developer error - check OAuth config"
-                7 -> "Network error"
-                4 -> "Sign-in required"
-                else -> "Unknown error code ${e.statusCode}"
+            viewModel.addDebugMessagePublic("NAV: task.isSuccessful=${task.isSuccessful}")
+            
+            if (task.isSuccessful) {
+                val account = task.result
+                viewModel.addDebugMessagePublic("NAV: Got account: ${account?.email}")
+                viewModel.handleGmailSignInResult(account)
+            } else {
+                // Task failed, try to get the exception
+                try {
+                    task.getResult(ApiException::class.java)
+                } catch (e: ApiException) {
+                    viewModel.addDebugMessagePublic("NAV ERROR: ApiException code=${e.statusCode}")
+                    val errorMsg = when(e.statusCode) {
+                        12501 -> "Sign-in canceled"
+                        10 -> "OAuth config error (SHA1/package)"
+                        7 -> "Network error"
+                        4 -> "Sign-in required"
+                        12500 -> "Sign-in failed"
+                        else -> "Error code ${e.statusCode}"
+                    }
+                    android.widget.Toast.makeText(navController.context, errorMsg, android.widget.Toast.LENGTH_LONG).show()
+                }
+                viewModel.handleGmailSignInResult(null)
             }
-            viewModel.addDebugMessagePublic("NAV ERROR: $errorMsg")
-            android.widget.Toast.makeText(navController.context, "Email: $errorMsg", android.widget.Toast.LENGTH_LONG).show()
+        } catch (e: ApiException) {
+            viewModel.addDebugMessagePublic("NAV ERROR: ApiException code=${e.statusCode}")
+            android.widget.Toast.makeText(navController.context, "Error: ${e.statusCode}", android.widget.Toast.LENGTH_LONG).show()
             viewModel.handleGmailSignInResult(null)
         } catch (e: Exception) {
-            viewModel.addDebugMessagePublic("NAV ERROR: Exception - ${e.message}")
-            android.widget.Toast.makeText(navController.context, "Email ERROR: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+            viewModel.addDebugMessagePublic("NAV ERROR: ${e.javaClass.simpleName}: ${e.message}")
+            android.widget.Toast.makeText(navController.context, "Error: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
             viewModel.handleGmailSignInResult(null)
         }
     }
