@@ -104,9 +104,7 @@ fun MainNavigation(
                     scanResult = scanResult,
                     currencySymbol = viewModel.getCurrencySymbol(),
                     userName = if (userSettings?.isLoggedIn == true) userSettings?.displayName else null,
-                    onScanSms = { context, hasPermission -> 
-                        viewModel.scanSmsMessages(context, hasPermission) 
-                    },
+                    onScanSms = { viewModel.scanSmsMessages() },
                     onImportFile = { uri -> viewModel.parseStatementFile(uri) },
                     onDeleteTransaction = { id -> viewModel.deleteTransaction(id) },
                     onClearScanResult = { viewModel.clearScanResult() },

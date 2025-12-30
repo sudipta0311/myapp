@@ -270,15 +270,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return financeAssistant.generateResponse(intent, transactions.value, getCurrencySymbol())
     }
     
-    fun scanSmsMessages(context: Context, hasPermission: Boolean) {
-        if (!hasPermission) {
-            _scanResult.value = "SMS permission required"
-            return
-        }
-        
+    fun scanSmsMessages() {
         viewModelScope.launch {
             _isLoading.value = true
+            _scanResult.value = "Scanning SMS messages..."
             try {
+                val appContext = getApplication<Application>().applicationContext
                 val parsedTransactions = withContext(Dispatchers.IO) {
                     val smsUri = Telephony.Sms.CONTENT_URI
                     val projection = arrayOf(
@@ -289,7 +286,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     )
 
                     val cursor: Cursor? = try {
-                        context.contentResolver.query(
+                        appContext.contentResolver.query(
                             smsUri,
                             projection,
                             null,
@@ -297,6 +294,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             "${Telephony.Sms.DATE} DESC LIMIT 500"
                         )
                     } catch (e: SecurityException) {
+                        _scanResult.value = "SMS permission required"
                         null
                     }
 

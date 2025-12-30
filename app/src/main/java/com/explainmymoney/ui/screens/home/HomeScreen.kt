@@ -1,7 +1,6 @@
 package com.explainmymoney.ui.screens.home
 
 import android.Manifest
-import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -30,7 +29,7 @@ fun HomeScreen(
     scanResult: String?,
     currencySymbol: String,
     userName: String? = null,
-    onScanSms: (Context, Boolean) -> Unit,
+    onScanSms: () -> Unit,
     onImportFile: (Uri) -> Unit,
     onDeleteTransaction: (Long) -> Unit,
     onClearScanResult: () -> Unit,
@@ -58,7 +57,7 @@ fun HomeScreen(
     ) { isGranted ->
         permissionRequested = false
         if (isGranted) {
-            onScanSms(context, true)
+            onScanSms()
         }
     }
     
@@ -145,7 +144,7 @@ fun HomeScreen(
                         // Re-check permission at click time
                         val currentPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
                         if (currentPermission) {
-                            onScanSms(context, true)
+                            onScanSms()
                         } else {
                             showPermissionDialog = true
                         }
