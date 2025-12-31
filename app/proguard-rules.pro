@@ -46,3 +46,19 @@
 # OpenCSV
 -dontwarn com.opencsv.**
 -keep class com.opencsv.** { *; }
+
+# Google Sign-In
+-keep class com.google.android.gms.auth.** { *; }
+-keep class com.google.android.gms.common.** { *; }
+-dontwarn com.google.android.gms.**
+
+# Gmail API
+-keep class com.google.api.** { *; }
+-keep class com.google.api.client.** { *; }
+-keep class com.google.api.services.gmail.** { *; }
+-dontwarn com.google.api.**
+
+# Gson (used by Google APIs)
+-keep class com.google.gson.** { *; }
+-keepattributes Signature
+-keepattributes *Annotation*
