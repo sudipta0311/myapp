@@ -62,3 +62,14 @@
 -keep class com.google.gson.** { *; }
 -keepattributes Signature
 -keepattributes *Annotation*
+
+# Apache HTTP Client (used by Google APIs)
+-dontwarn org.apache.http.**
+-dontwarn android.net.http.**
+-keep class org.apache.http.** { *; }
+
+# JNDI/LDAP classes (not available on Android)
+-dontwarn javax.naming.**
+
+# JGSS/Kerberos classes (not available on Android)
+-dontwarn org.ietf.jgss.**
