@@ -585,25 +585,73 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
     
     fun scanGmailEmails() {
+        addDebugMessage("EMAIL SCAN: Starting email scan...")
+        val appContext = getApplication<Application>().applicationContext
+        
         viewModelScope.launch {
-            _isGmailScanning.value = true
-            _isLoading.value = true
             try {
-                val emails = gmailReader.readTransactionEmails(50)
-                val parsedTransactions = emailParser.parseEmails(emails)
+                addDebugMessage("EMAIL SCAN: Setting loading state")
+                _isGmailScanning.value = true
+                _isLoading.value = true
+                
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(appContext, "Scanning emails...", Toast.LENGTH_SHORT).show()
+                }
+                
+                addDebugMessage("EMAIL SCAN: Checking authentication")
+                if (!gmailReader.isAuthenticated()) {
+                    addDebugMessage("EMAIL SCAN ERROR: Not authenticated")
+                    _scanResult.value = "Please connect Gmail first"
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(appContext, "Please connect Gmail first", Toast.LENGTH_LONG).show()
+                    }
+                    _isLoading.value = false
+                    _isGmailScanning.value = false
+                    return@launch
+                }
+                
+                addDebugMessage("EMAIL SCAN: Reading emails from Gmail API")
+                val emails = withContext(Dispatchers.IO) {
+                    gmailReader.readTransactionEmails(50)
+                }
+                addDebugMessage("EMAIL SCAN: Got ${emails.size} emails")
+                
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(appContext, "Found ${emails.size} emails, parsing...", Toast.LENGTH_SHORT).show()
+                }
+                
+                addDebugMessage("EMAIL SCAN: Parsing emails for transactions")
+                val parsedTransactions = withContext(Dispatchers.IO) {
+                    emailParser.parseEmails(emails)
+                }
+                addDebugMessage("EMAIL SCAN: Parsed ${parsedTransactions.size} transactions")
                 
                 if (parsedTransactions.isNotEmpty()) {
                     repository.insertTransactions(parsedTransactions)
                     loadAnalytics()
                     _scanResult.value = "Found ${parsedTransactions.size} transactions from ${emails.size} emails"
+                    addDebugMessage("EMAIL SCAN SUCCESS: Saved ${parsedTransactions.size} transactions")
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(appContext, "Found ${parsedTransactions.size} transactions!", Toast.LENGTH_LONG).show()
+                    }
                 } else {
                     _scanResult.value = "No transaction emails found"
+                    addDebugMessage("EMAIL SCAN: No transactions found in ${emails.size} emails")
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(appContext, "No transaction emails found", Toast.LENGTH_SHORT).show()
+                    }
                 }
             } catch (e: Exception) {
+                addDebugMessage("EMAIL SCAN ERROR: ${e.javaClass.simpleName}: ${e.message}")
                 _scanResult.value = "Error scanning emails: ${e.message ?: "Unknown error"}"
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(appContext, "Error: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+            } finally {
+                _isLoading.value = false
+                _isGmailScanning.value = false
+                addDebugMessage("EMAIL SCAN: Completed")
             }
-            _isLoading.value = false
-            _isGmailScanning.value = false
         }
     }
     
