@@ -52,6 +52,7 @@ fun PermissionsScreen(
     onDeleteSlm: () -> Unit,
     onGetGmailSignInIntent: () -> Intent = { Intent() },
     onGmailSignInResult: (GoogleSignInAccount?) -> Unit = {},
+    onHandleEmailResult: (String?, String?) -> Unit = { _, _ -> },
     isGmailConnected: Boolean = false,
     gmailEmail: String? = null,
     modifier: Modifier = Modifier
@@ -91,15 +92,23 @@ fun PermissionsScreen(
     val gmailSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        try {
-            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
-            val account = task.getResult(ApiException::class.java)
-            onGmailSignInResult(account)
-        } catch (e: ApiException) {
-            // Sign-in failed or was cancelled
-            onGmailSignInResult(null)
-        } catch (e: Exception) {
-            onGmailSignInResult(null)
+        onAddDebugMessage("EMAIL: resultCode=${result.resultCode}, hasData=${result.data != null}")
+        
+        if (result.resultCode != android.app.Activity.RESULT_OK || result.data == null) {
+            onAddDebugMessage("EMAIL: User canceled or no data")
+            return@rememberLauncherForActivityResult
+        }
+        
+        // Get account from AccountPicker result
+        val accountName = result.data?.getStringExtra(android.accounts.AccountManager.KEY_ACCOUNT_NAME)
+        val accountType = result.data?.getStringExtra(android.accounts.AccountManager.KEY_ACCOUNT_TYPE)
+        onAddDebugMessage("EMAIL: AccountPicker result - name=$accountName, type=$accountType")
+        
+        if (accountName != null) {
+            onAddDebugMessage("EMAIL SUCCESS: Selected account $accountName")
+            onHandleEmailResult(accountName, accountType)
+        } else {
+            onAddDebugMessage("EMAIL ERROR: No account name in result")
         }
     }
 

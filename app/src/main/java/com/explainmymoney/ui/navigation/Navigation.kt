@@ -197,6 +197,7 @@ fun MainNavigation(
                     onDeleteSlm = { viewModel.deleteSlmModel() },
                     onGetGmailSignInIntent = { viewModel.getGmailSignInIntent() },
                     onGmailSignInResult = { account -> viewModel.handleGmailSignInResult(account) },
+                    onHandleEmailResult = { name, type -> viewModel.handleEmailAccountResult(name, type) },
                     isGmailConnected = isGmailConnected,
                     gmailEmail = userSettings?.gmailEmail
                 )
