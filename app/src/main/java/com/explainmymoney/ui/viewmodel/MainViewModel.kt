@@ -588,18 +588,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         addDebugMessage("EMAIL SCAN: Starting email scan...")
         val appContext = getApplication<Application>().applicationContext
         
+        // Show toast immediately on main thread
+        Toast.makeText(appContext, "Starting email scan...", Toast.LENGTH_SHORT).show()
+        
         viewModelScope.launch {
             try {
                 addDebugMessage("EMAIL SCAN: Setting loading state")
                 _isGmailScanning.value = true
                 _isLoading.value = true
                 
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(appContext, "Scanning emails...", Toast.LENGTH_SHORT).show()
+                addDebugMessage("EMAIL SCAN: Checking authentication")
+                val isAuth = try {
+                    gmailReader.isAuthenticated()
+                } catch (e: Exception) {
+                    addDebugMessage("EMAIL SCAN ERROR: Auth check failed: ${e.message}")
+                    false
                 }
                 
-                addDebugMessage("EMAIL SCAN: Checking authentication")
-                if (!gmailReader.isAuthenticated()) {
+                if (!isAuth) {
                     addDebugMessage("EMAIL SCAN ERROR: Not authenticated")
                     _scanResult.value = "Please connect Gmail first"
                     withContext(Dispatchers.Main) {
@@ -610,9 +616,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     return@launch
                 }
                 
-                addDebugMessage("EMAIL SCAN: Reading emails from Gmail API")
-                val emails = withContext(Dispatchers.IO) {
-                    gmailReader.readTransactionEmails(50)
+                addDebugMessage("EMAIL SCAN: Auth OK, calling Gmail API...")
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(appContext, "Calling Gmail API...", Toast.LENGTH_SHORT).show()
+                }
+                
+                val emails = try {
+                    withContext(Dispatchers.IO) {
+                        gmailReader.readTransactionEmails(50)
+                    }
+                } catch (e: Exception) {
+                    addDebugMessage("EMAIL SCAN CRASH: ${e.javaClass.simpleName}: ${e.message}")
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(appContext, "Gmail API error: ${e.message}", Toast.LENGTH_LONG).show()
+                    }
+                    throw e
                 }
                 addDebugMessage("EMAIL SCAN: Got ${emails.size} emails")
                 
