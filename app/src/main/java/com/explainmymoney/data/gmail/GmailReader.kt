@@ -111,39 +111,77 @@ class GmailReader(private val context: Context) {
     }
     
     suspend fun readTransactionEmails(maxResults: Int = 50): List<EmailData> = withContext(Dispatchers.IO) {
-        val account = GoogleSignIn.getLastSignedInAccount(context)
-        if (account == null || gmailService == null) {
-            if (account != null) {
-                initializeGmailService(account)
-            } else {
-                return@withContext emptyList()
-            }
-        }
+        Log.d(TAG, "readTransactionEmails: Starting with maxResults=$maxResults")
         
         try {
-            val query = buildTransactionEmailQuery()
+            val account = GoogleSignIn.getLastSignedInAccount(context)
+            Log.d(TAG, "readTransactionEmails: account=${account?.email}")
             
-            val response = gmailService!!.users().messages()
-                .list("me")
-                .setQ(query)
-                .setMaxResults(maxResults.toLong())
-                .execute()
+            if (account == null) {
+                Log.e(TAG, "readTransactionEmails: No signed-in account")
+                return@withContext emptyList()
+            }
             
-            val messages = response.messages ?: return@withContext emptyList()
-            
-            messages.mapNotNull { msg ->
+            if (gmailService == null) {
+                Log.d(TAG, "readTransactionEmails: Gmail service is null, initializing...")
                 try {
-                    val fullMsg = gmailService!!.users().messages()
+                    initializeGmailService(account)
+                    Log.d(TAG, "readTransactionEmails: Gmail service initialized")
+                } catch (e: Exception) {
+                    Log.e(TAG, "readTransactionEmails: Failed to initialize Gmail service: ${e.message}", e)
+                    return@withContext emptyList()
+                }
+            }
+            
+            val service = gmailService
+            if (service == null) {
+                Log.e(TAG, "readTransactionEmails: Gmail service still null after init")
+                return@withContext emptyList()
+            }
+            
+            Log.d(TAG, "readTransactionEmails: Building query")
+            val query = buildTransactionEmailQuery()
+            Log.d(TAG, "readTransactionEmails: Query built, executing list request")
+            
+            val response = try {
+                service.users().messages()
+                    .list("me")
+                    .setQ(query)
+                    .setMaxResults(maxResults.toLong())
+                    .execute()
+            } catch (e: Exception) {
+                Log.e(TAG, "readTransactionEmails: Failed to list messages: ${e.javaClass.simpleName}: ${e.message}", e)
+                return@withContext emptyList()
+            }
+            
+            val messages = response?.messages
+            if (messages.isNullOrEmpty()) {
+                Log.d(TAG, "readTransactionEmails: No messages found")
+                return@withContext emptyList()
+            }
+            
+            Log.d(TAG, "readTransactionEmails: Found ${messages.size} messages, fetching details")
+            
+            val emails = mutableListOf<EmailData>()
+            for ((index, msg) in messages.withIndex()) {
+                try {
+                    Log.d(TAG, "readTransactionEmails: Fetching message ${index + 1}/${messages.size}")
+                    val fullMsg = service.users().messages()
                         .get("me", msg.id)
                         .setFormat("full")
                         .execute()
                     
-                    parseEmail(fullMsg)
+                    val emailData = parseEmail(fullMsg)
+                    emails.add(emailData)
                 } catch (e: Exception) {
-                    null
+                    Log.e(TAG, "readTransactionEmails: Error fetching message ${msg.id}: ${e.message}")
                 }
             }
+            
+            Log.d(TAG, "readTransactionEmails: Returning ${emails.size} emails")
+            emails
         } catch (e: Exception) {
+            Log.e(TAG, "readTransactionEmails: Unexpected error: ${e.javaClass.simpleName}: ${e.message}", e)
             emptyList()
         }
     }

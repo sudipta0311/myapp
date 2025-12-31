@@ -56,7 +56,26 @@
 -keep class com.google.api.** { *; }
 -keep class com.google.api.client.** { *; }
 -keep class com.google.api.services.gmail.** { *; }
+-keep class com.google.api.services.gmail.model.** { *; }
 -dontwarn com.google.api.**
+
+# Google HTTP Client
+-keep class com.google.api.client.http.** { *; }
+-keep class com.google.api.client.json.** { *; }
+-keep class com.google.api.client.util.** { *; }
+-keep class com.google.api.client.googleapis.** { *; }
+
+# Keep Gmail model classes (prevent R8 from stripping)
+-keepclassmembers class com.google.api.services.gmail.model.** {
+    *;
+}
+
+# Prevent R8 from removing reflection-based classes
+-keepattributes InnerClasses
+-keep class **.R
+-keep class **.R$* {
+    <fields>;
+}
 
 # Gson (used by Google APIs)
 -keep class com.google.gson.** { *; }
