@@ -1,6 +1,8 @@
 package com.explainmymoney.ui.screens.analytics
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -13,9 +15,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.explainmymoney.domain.model.Transaction
 import com.explainmymoney.domain.model.TransactionCategory
@@ -37,13 +43,56 @@ fun AnalyticsScreen(
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val dailyAverage = if (Calendar.getInstance().get(Calendar.DAY_OF_MONTH) > 0) {
-        totalSpent / Calendar.getInstance().get(Calendar.DAY_OF_MONTH)
+    var selectedTab by remember { mutableIntStateOf(0) }
+    val tabs = listOf("Categories", "Trends", "Forecast")
+    
+    // Month/Year filter state
+    val calendar = Calendar.getInstance()
+    var selectedMonth by remember { mutableIntStateOf(calendar.get(Calendar.MONTH)) }
+    var selectedYear by remember { mutableIntStateOf(calendar.get(Calendar.YEAR)) }
+    var showMonthPicker by remember { mutableStateOf(false) }
+    
+    val months = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+    val years = (2020..calendar.get(Calendar.YEAR)).toList()
+    
+    // Filter transactions by selected month/year
+    val filteredTransactions = remember(transactions, selectedMonth, selectedYear) {
+        transactions.filter { tx ->
+            val txCal = Calendar.getInstance().apply { timeInMillis = tx.timestamp }
+            txCal.get(Calendar.MONTH) == selectedMonth && txCal.get(Calendar.YEAR) == selectedYear
+        }
+    }
+    
+    // Recalculate totals for filtered transactions
+    val filteredTotalSpent = remember(filteredTransactions) {
+        filteredTransactions.filter { it.type == TransactionType.DEBIT }.sumOf { it.amount }
+    }
+    val filteredTotalIncome = remember(filteredTransactions) {
+        filteredTransactions.filter { it.type == TransactionType.CREDIT }.sumOf { it.amount }
+    }
+    val filteredCategoryBreakdown = remember(filteredTransactions) {
+        filteredTransactions
+            .filter { it.type == TransactionType.DEBIT }
+            .groupBy { it.category }
+            .mapValues { entry -> entry.value.sumOf { it.amount } }
+    }
+    
+    val dailyAverage = if (calendar.get(Calendar.DAY_OF_MONTH) > 0) {
+        filteredTotalSpent / calendar.get(Calendar.DAY_OF_MONTH)
     } else 0.0
 
-    val daysRemaining = Calendar.getInstance().getActualMaximum(Calendar.DAY_OF_MONTH) - 
-                       Calendar.getInstance().get(Calendar.DAY_OF_MONTH)
-    val projectedMonthlySpend = totalSpent + (dailyAverage * daysRemaining)
+    val daysRemaining = calendar.getActualMaximum(Calendar.DAY_OF_MONTH) - 
+                       calendar.get(Calendar.DAY_OF_MONTH)
+    val projectedMonthlySpend = filteredTotalSpent + (dailyAverage * daysRemaining)
+    
+    // EMI calculation (recurring debits)
+    val emiTotal = remember(filteredTransactions) {
+        filteredTransactions
+            .filter { it.category == TransactionCategory.EMI_HOME_LOAN || 
+                     it.category == TransactionCategory.EMI_CAR_LOAN ||
+                     it.category == TransactionCategory.RENT }
+            .sumOf { it.amount }
+    }
 
     LaunchedEffect(Unit) {
         onRefresh()
@@ -55,20 +104,15 @@ fun AnalyticsScreen(
                 title = {
                     Column {
                         Text(
-                            text = "Analytics",
+                            text = "Spending Analytics",
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = getCurrentMonthYear(),
+                            text = "Track your spending patterns and trends",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                    }
-                },
-                actions = {
-                    IconButton(onClick = onRefresh) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -78,240 +122,574 @@ fun AnalyticsScreen(
         },
         modifier = modifier
     ) { innerPadding ->
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(innerPadding)
         ) {
-            item {
+            // Month/Year Filter
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .clickable { showMonthPicker = true },
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    SummaryCard(
-                        title = "Total Spent",
-                        amount = totalSpent,
-                        currencySymbol = currencySymbol,
-                        icon = Icons.Default.ArrowUpward,
-                        iconColor = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.weight(1f)
-                    )
-                    SummaryCard(
-                        title = "Total Income",
-                        amount = totalIncome,
-                        currencySymbol = currencySymbol,
-                        icon = Icons.Default.ArrowDownward,
-                        iconColor = Color(0xFF4CAF50),
-                        modifier = Modifier.weight(1f)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.CalendarMonth,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "${months[selectedMonth]} $selectedYear",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    Icon(
+                        Icons.Default.ArrowDropDown,
+                        contentDescription = "Select month"
                     )
                 }
             }
-
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp)
+            
+            // Summary Cards Row
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text(
-                            text = "IF THIS CONTINUES...",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
-                            fontWeight = FontWeight.Bold
+                        SummaryCard(
+                            title = "Total Spend",
+                            amount = filteredTotalSpent,
+                            currencySymbol = currencySymbol,
+                            subtitle = "Last 7 days avg: ${currencySymbol}${formatAmount(dailyAverage)}/day",
+                            subtitleColor = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.weight(1f)
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(
-                                    text = "Projected Monthly Spend",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                                Text(
-                                    text = "$currencySymbol${formatAmount(projectedMonthlySpend)}",
-                                    style = MaterialTheme.typography.headlineMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            }
-                            
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text(
-                                    text = "Daily Average",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                                )
-                                Text(
-                                    text = "$currencySymbol${formatAmount(dailyAverage)}",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            }
-                        }
-                        
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        Text(
-                            text = "$daysRemaining days remaining in this month",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                        SummaryCard(
+                            title = "EMI Obligations",
+                            amount = emiTotal,
+                            currencySymbol = currencySymbol,
+                            subtitle = "Monthly recurring",
+                            subtitleColor = Color(0xFF4CAF50),
+                            modifier = Modifier.weight(1f)
                         )
                     }
                 }
-            }
-
-            item {
-                Text(
-                    text = "SPENDING BY CATEGORY",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            if (categoryBreakdown.isEmpty()) {
+                
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(32.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
                             Text(
-                                text = "No spending data yet",
-                                style = MaterialTheme.typography.bodyMedium,
+                                text = "Investment Total",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "$currencySymbol${formatAmount(totalInvestedThisYear)}",
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "SIP + Stock purchases tracked",
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
                 }
-            } else {
-                items(categoryBreakdown.entries.sortedByDescending { it.value }.toList()) { (category, amount) ->
-                    CategoryRow(
-                        category = category,
-                        amount = amount,
-                        total = totalSpent,
-                        currencySymbol = currencySymbol
-                    )
+                
+                // Tab Row
+                item {
+                    TabRow(
+                        selectedTabIndex = selectedTab,
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        contentColor = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.clip(RoundedCornerShape(12.dp))
+                    ) {
+                        tabs.forEachIndexed { index, title ->
+                            Tab(
+                                selected = selectedTab == index,
+                                onClick = { selectedTab = index },
+                                text = { Text(title) }
+                            )
+                        }
+                    }
                 }
-            }
-
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "YEARLY SUMMARY (${Calendar.getInstance().get(Calendar.YEAR)})",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.tertiaryContainer
-                    )
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column {
-                                Text(
-                                    text = "Total Spent",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
-                                )
-                                Text(
-                                    text = "$currencySymbol${formatAmount(totalSpentThisYear)}",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onTertiaryContainer
-                                )
-                            }
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text(
-                                    text = "Total Income",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
-                                )
-                                Text(
-                                    text = "$currencySymbol${formatAmount(totalIncomeThisYear)}",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF4CAF50)
+                
+                // Tab Content
+                when (selectedTab) {
+                    0 -> { // Categories Tab
+                        item {
+                            if (filteredCategoryBreakdown.isEmpty()) {
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(32.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "No spending data for ${months[selectedMonth]} $selectedYear",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            } else {
+                                // Pie Chart
+                                PieChart(
+                                    categoryBreakdown = filteredCategoryBreakdown,
+                                    totalSpent = filteredTotalSpent,
+                                    currencySymbol = currencySymbol,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(250.dp)
                                 )
                             }
                         }
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column {
-                                Text(
-                                    text = "Total Invested",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
-                                )
-                                Text(
-                                    text = "$currencySymbol${formatAmount(totalInvestedThisYear)}",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text(
-                                    text = "Net Savings",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
-                                )
-                                val netSavings = totalIncomeThisYear - totalSpentThisYear
-                                Text(
-                                    text = "${if (netSavings >= 0) "+" else ""}$currencySymbol${formatAmount(netSavings)}",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (netSavings >= 0) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error
-                                )
-                            }
+                        
+                        // Category list
+                        items(filteredCategoryBreakdown.entries.sortedByDescending { it.value }.toList()) { (category, amount) ->
+                            CategoryRow(
+                                category = category,
+                                amount = amount,
+                                total = filteredTotalSpent,
+                                currencySymbol = currencySymbol
+                            )
+                        }
+                    }
+                    1 -> { // Trends Tab
+                        item {
+                            TrendsContent(
+                                transactions = filteredTransactions,
+                                currencySymbol = currencySymbol,
+                                dailyAverage = dailyAverage
+                            )
+                        }
+                    }
+                    2 -> { // Forecast Tab
+                        item {
+                            ForecastContent(
+                                projectedMonthlySpend = projectedMonthlySpend,
+                                dailyAverage = dailyAverage,
+                                daysRemaining = daysRemaining,
+                                currencySymbol = currencySymbol
+                            )
                         }
                     }
                 }
             }
+        }
+        
+        // Month Picker Dialog
+        if (showMonthPicker) {
+            AlertDialog(
+                onDismissRequest = { showMonthPicker = false },
+                title = { Text("Select Month & Year") },
+                text = {
+                    Column {
+                        Text("Year", style = MaterialTheme.typography.labelMedium)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            years.takeLast(5).forEach { year ->
+                                FilterChip(
+                                    selected = selectedYear == year,
+                                    onClick = { selectedYear = year },
+                                    label = { Text(year.toString()) }
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("Month", style = MaterialTheme.typography.labelMedium)
+                        Column {
+                            (0..11 step 4).forEach { startIndex ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    (startIndex until minOf(startIndex + 4, 12)).forEach { monthIndex ->
+                                        FilterChip(
+                                            selected = selectedMonth == monthIndex,
+                                            onClick = { selectedMonth = monthIndex },
+                                            label = { Text(months[monthIndex]) },
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showMonthPicker = false }) {
+                        Text("Done")
+                    }
+                }
+            )
+        }
+    }
+}
 
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
+@Composable
+private fun PieChart(
+    categoryBreakdown: Map<TransactionCategory, Double>,
+    totalSpent: Double,
+    currencySymbol: String,
+    modifier: Modifier = Modifier
+) {
+    val sortedCategories = categoryBreakdown.entries.sortedByDescending { it.value }
+    
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Pie Chart Canvas
+            Box(
+                modifier = Modifier
+                    .size(150.dp)
+                    .padding(8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    var startAngle = -90f
+                    val strokeWidth = 35f
+                    
+                    sortedCategories.forEach { (category, amount) ->
+                        val sweepAngle = if (totalSpent > 0) (amount / totalSpent * 360f).toFloat() else 0f
+                        drawArc(
+                            color = getCategoryColor(category),
+                            startAngle = startAngle,
+                            sweepAngle = sweepAngle,
+                            useCenter = false,
+                            style = Stroke(width = strokeWidth),
+                            size = Size(size.width - strokeWidth, size.height - strokeWidth),
+                            topLeft = Offset(strokeWidth / 2, strokeWidth / 2)
+                        )
+                        startAngle += sweepAngle
+                    }
+                }
+                
+                // Center text
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "$currencySymbol${formatAmount(totalSpent)}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Total",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            
+            // Legend
+            Column(
+                modifier = Modifier.weight(1f).padding(start = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                sortedCategories.take(5).forEach { (category, amount) ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(getCategoryColor(category))
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = formatCategoryName(category),
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = "${if (totalSpent > 0) (amount / totalSpent * 100).toInt() else 0}%",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+                if (sortedCategories.size > 5) {
+                    Text(
+                        text = "+${sortedCategories.size - 5} more",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrendsContent(
+    transactions: List<Transaction>,
+    currencySymbol: String,
+    dailyAverage: Double,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Daily Spending Trend",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "Past 30 days",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Simple bar representation
+            val last30Days = transactions
+                .filter { it.type == TransactionType.DEBIT }
+                .groupBy { 
+                    val cal = Calendar.getInstance().apply { timeInMillis = it.timestamp }
+                    cal.get(Calendar.DAY_OF_MONTH)
+                }
+                .mapValues { entry -> entry.value.sumOf { it.amount } }
+            
+            if (last30Days.isEmpty()) {
                 Text(
-                    text = "RECENT ACTIVITY",
-                    style = MaterialTheme.typography.labelMedium,
+                    text = "No spending data available",
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.Bold
+                    modifier = Modifier.padding(vertical = 32.dp)
+                )
+            } else {
+                val maxSpend = last30Days.values.maxOrNull() ?: 1.0
+                
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(100.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    (1..30).forEach { day ->
+                        val spend = last30Days[day] ?: 0.0
+                        val height = if (maxSpend > 0) (spend / maxSpend * 80).toFloat() else 0f
+                        
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(height.dp.coerceAtLeast(2.dp))
+                                .clip(RoundedCornerShape(topStart = 2.dp, topEnd = 2.dp))
+                                .background(
+                                    if (spend > dailyAverage * 1.5) MaterialTheme.colorScheme.error
+                                    else MaterialTheme.colorScheme.primary
+                                )
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("1", style = MaterialTheme.typography.labelSmall)
+                    Text("Daily average: $currencySymbol${formatAmount(dailyAverage)}", 
+                         style = MaterialTheme.typography.labelSmall,
+                         color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("30", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ForecastContent(
+    projectedMonthlySpend: Double,
+    dailyAverage: Double,
+    daysRemaining: Int,
+    currencySymbol: String,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer
+            )
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Default.Info,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = "These are scenario-based estimates showing \"if-this-continues\" ranges based on your past spending. Not predictions or recommendations.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             }
-
-            items(transactions.take(5)) { transaction ->
-                MiniTransactionRow(transaction = transaction, currencySymbol = currencySymbol)
+        }
+        
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Lightbulb,
+                        contentDescription = null,
+                        tint = Color(0xFFFFC107),
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "How This Works",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                Text(
+                    text = "We take your spending from the past few weeks and extrapolate forward. The range (conservative to higher) accounts for natural variation in your spending patterns.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Projection cards
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Card(
+                        modifier = Modifier.weight(1f),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFF4CAF50).copy(alpha = 0.1f)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text("Conservative", style = MaterialTheme.typography.labelSmall)
+                            Text(
+                                "$currencySymbol${formatAmount(projectedMonthlySpend * 0.85)}",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF4CAF50)
+                            )
+                        }
+                    }
+                    
+                    Card(
+                        modifier = Modifier.weight(1f),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text("Expected", style = MaterialTheme.typography.labelSmall)
+                            Text(
+                                "$currencySymbol${formatAmount(projectedMonthlySpend)}",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                    
+                    Card(
+                        modifier = Modifier.weight(1f),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.1f)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text("Higher", style = MaterialTheme.typography.labelSmall)
+                            Text(
+                                "$currencySymbol${formatAmount(projectedMonthlySpend * 1.15)}",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                Text(
+                    text = "$daysRemaining days remaining • Daily avg: $currencySymbol${formatAmount(dailyAverage)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
     }
@@ -322,8 +700,8 @@ private fun SummaryCard(
     title: String,
     amount: Double,
     currencySymbol: String,
-    icon: ImageVector,
-    iconColor: Color,
+    subtitle: String,
+    subtitleColor: Color,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -333,28 +711,22 @@ private fun SummaryCard(
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = iconColor,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "$currencySymbol${formatAmount(amount)}",
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.labelSmall,
+                color = subtitleColor
             )
         }
     }
