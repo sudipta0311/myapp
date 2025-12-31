@@ -546,42 +546,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
     
     fun getGmailSignInIntent(): Intent {
-        addDebugMessage("EMAIL: getGmailSignInIntent() using AccountPicker")
+        addDebugMessage("EMAIL: getGmailSignInIntent() using OAuth with Web Client ID")
         return try {
-            val intent = android.accounts.AccountManager.newChooseAccountIntent(
-                null,
-                null,
-                arrayOf("com.google"),
-                null,
-                null,
-                null,
-                null
-            )
-            addDebugMessage("EMAIL: AccountPicker intent created")
+            val intent = gmailReader.getSignInIntent()
+            addDebugMessage("EMAIL: OAuth sign-in intent created")
             intent
         } catch (e: Exception) {
             addDebugMessage("EMAIL ERROR: ${e.javaClass.simpleName}: ${e.message}")
             Intent()
-        }
-    }
-    
-    // Handle email sign-in from AccountPicker result
-    fun handleEmailAccountResult(accountName: String?, accountType: String?) {
-        addDebugMessage("EMAIL: handleEmailAccountResult - name=$accountName, type=$accountType")
-        val appContext = getApplication<Application>().applicationContext
-        if (accountName != null && accountType == "com.google") {
-            addDebugMessage("EMAIL: Valid Google account selected")
-            viewModelScope.launch {
-                _isGmailConnected.value = true
-                userSettingsDao.updateGmailStatus(true, accountName)
-                addDebugMessage("EMAIL SUCCESS: Connected to $accountName")
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(appContext, "Connected to $accountName", Toast.LENGTH_LONG).show()
-                }
-            }
-        } else {
-            addDebugMessage("EMAIL ERROR: Invalid account")
-            Toast.makeText(appContext, "Failed to connect email", Toast.LENGTH_LONG).show()
         }
     }
     

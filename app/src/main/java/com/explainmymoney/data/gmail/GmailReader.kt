@@ -40,6 +40,8 @@ class GmailReader(private val context: Context) {
     companion object {
         const val REQUEST_CODE_SIGN_IN = 1001
         private val GMAIL_SCOPE = Scope(GmailScopes.GMAIL_READONLY)
+        // Web Client ID from Google Cloud Console
+        private const val WEB_CLIENT_ID = "49844813522-7d5dqbh8dn7kpat4oqequ0sk7ucah2uo.apps.googleusercontent.com"
     }
     
     private var googleSignInClient: GoogleSignInClient? = null
@@ -58,14 +60,15 @@ class GmailReader(private val context: Context) {
     }
     
     fun getSignInIntent(): Intent {
-        Log.d(TAG, "getSignInIntent() called")
+        Log.d(TAG, "getSignInIntent() called with Web Client ID")
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestIdToken(WEB_CLIENT_ID)
             .requestEmail()
             .requestScopes(GMAIL_SCOPE)
             .build()
         
         googleSignInClient = GoogleSignIn.getClient(context, gso)
-        Log.d(TAG, "getSignInIntent: Created sign-in client")
+        Log.d(TAG, "getSignInIntent: Created sign-in client with Web Client ID")
         return googleSignInClient!!.signInIntent
     }
     

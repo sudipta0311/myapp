@@ -52,7 +52,6 @@ fun PermissionsScreen(
     onDeleteSlm: () -> Unit,
     onGetGmailSignInIntent: () -> Intent = { Intent() },
     onGmailSignInResult: (GoogleSignInAccount?) -> Unit = {},
-    onHandleEmailResult: (String?, String?) -> Unit = { _, _ -> },
     isGmailConnected: Boolean = false,
     gmailEmail: String? = null,
     modifier: Modifier = Modifier
@@ -94,21 +93,34 @@ fun PermissionsScreen(
     ) { result ->
         onAddDebugMessage("EMAIL: resultCode=${result.resultCode}, hasData=${result.data != null}")
         
-        if (result.resultCode != android.app.Activity.RESULT_OK || result.data == null) {
-            onAddDebugMessage("EMAIL: User canceled or no data")
+        if (result.data == null) {
+            onAddDebugMessage("EMAIL: result.data is null")
+            onGmailSignInResult(null)
             return@rememberLauncherForActivityResult
         }
         
-        // Get account from AccountPicker result
-        val accountName = result.data?.getStringExtra(android.accounts.AccountManager.KEY_ACCOUNT_NAME)
-        val accountType = result.data?.getStringExtra(android.accounts.AccountManager.KEY_ACCOUNT_TYPE)
-        onAddDebugMessage("EMAIL: AccountPicker result - name=$accountName, type=$accountType")
-        
-        if (accountName != null) {
-            onAddDebugMessage("EMAIL SUCCESS: Selected account $accountName")
-            onHandleEmailResult(accountName, accountType)
-        } else {
-            onAddDebugMessage("EMAIL ERROR: No account name in result")
+        try {
+            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+            onAddDebugMessage("EMAIL: task.isSuccessful=${task.isSuccessful}")
+            
+            if (task.isSuccessful) {
+                val account = task.result
+                onAddDebugMessage("EMAIL: Got account: ${account?.email}")
+                onGmailSignInResult(account)
+            } else {
+                try {
+                    task.getResult(ApiException::class.java)
+                } catch (e: ApiException) {
+                    onAddDebugMessage("EMAIL ERROR: ApiException code=${e.statusCode}")
+                }
+                onGmailSignInResult(null)
+            }
+        } catch (e: ApiException) {
+            onAddDebugMessage("EMAIL ERROR: ApiException code=${e.statusCode}")
+            onGmailSignInResult(null)
+        } catch (e: Exception) {
+            onAddDebugMessage("EMAIL ERROR: ${e.javaClass.simpleName}: ${e.message}")
+            onGmailSignInResult(null)
         }
     }
 

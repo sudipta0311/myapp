@@ -74,27 +74,40 @@ fun MainNavigation(
     val totalInvestedThisYear by viewModel.totalInvestedThisYear.collectAsState()
     val debugMessages by viewModel.debugMessages.collectAsState()
 
-    // Gmail sign-in launcher for HomeScreen email permission (using AccountPicker)
+    // Gmail sign-in launcher for HomeScreen email permission (using OAuth)
     val gmailSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         viewModel.addDebugMessagePublic("NAV: resultCode=${result.resultCode}, hasData=${result.data != null}")
         
-        if (result.resultCode != android.app.Activity.RESULT_OK || result.data == null) {
-            viewModel.addDebugMessagePublic("NAV: User canceled or no data")
+        if (result.data == null) {
+            viewModel.addDebugMessagePublic("NAV: result.data is null")
+            viewModel.handleGmailSignInResult(null)
             return@rememberLauncherForActivityResult
         }
         
-        // Get account from AccountPicker result
-        val accountName = result.data?.getStringExtra(android.accounts.AccountManager.KEY_ACCOUNT_NAME)
-        val accountType = result.data?.getStringExtra(android.accounts.AccountManager.KEY_ACCOUNT_TYPE)
-        viewModel.addDebugMessagePublic("NAV: AccountPicker result - name=$accountName, type=$accountType")
-        
-        if (accountName != null) {
-            viewModel.addDebugMessagePublic("NAV SUCCESS: Selected account $accountName")
-            viewModel.handleEmailAccountResult(accountName, accountType)
-        } else {
-            viewModel.addDebugMessagePublic("NAV ERROR: No account name in result")
+        try {
+            val task = com.google.android.gms.auth.api.signin.GoogleSignIn.getSignedInAccountFromIntent(result.data)
+            viewModel.addDebugMessagePublic("NAV: task.isSuccessful=${task.isSuccessful}")
+            
+            if (task.isSuccessful) {
+                val account = task.result
+                viewModel.addDebugMessagePublic("NAV: Got account: ${account?.email}")
+                viewModel.handleGmailSignInResult(account)
+            } else {
+                try {
+                    task.getResult(com.google.android.gms.common.api.ApiException::class.java)
+                } catch (e: com.google.android.gms.common.api.ApiException) {
+                    viewModel.addDebugMessagePublic("NAV ERROR: ApiException code=${e.statusCode}")
+                }
+                viewModel.handleGmailSignInResult(null)
+            }
+        } catch (e: com.google.android.gms.common.api.ApiException) {
+            viewModel.addDebugMessagePublic("NAV ERROR: ApiException code=${e.statusCode}")
+            viewModel.handleGmailSignInResult(null)
+        } catch (e: Exception) {
+            viewModel.addDebugMessagePublic("NAV ERROR: ${e.javaClass.simpleName}: ${e.message}")
+            viewModel.handleGmailSignInResult(null)
         }
     }
 
@@ -197,7 +210,6 @@ fun MainNavigation(
                     onDeleteSlm = { viewModel.deleteSlmModel() },
                     onGetGmailSignInIntent = { viewModel.getGmailSignInIntent() },
                     onGmailSignInResult = { account -> viewModel.handleGmailSignInResult(account) },
-                    onHandleEmailResult = { name, type -> viewModel.handleEmailAccountResult(name, type) },
                     isGmailConnected = isGmailConnected,
                     gmailEmail = userSettings?.gmailEmail
                 )
