@@ -312,16 +312,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             viewModelScope.launch {
                 addDebugMessage("SMS: Starting coroutine")
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(appContext, "Step 1: Starting SMS scan...", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(appContext, "Starting SMS scan...", Toast.LENGTH_SHORT).show()
                 }
                 _isLoading.value = true
                 _scanResult.value = "Scanning SMS messages..."
+                
+                // Add delay to let UI update
+                kotlinx.coroutines.delay(1000)
+                
                 try {
                     addDebugMessage("SMS: Got app context")
-                    val parsedTransactions = withContext(Dispatchers.IO) {
+                    
+                    // First, read all SMS messages
+                    val allSmsData = withContext(Dispatchers.IO) {
                         addDebugMessage("SMS: In IO dispatcher")
                         val smsUri = Telephony.Sms.CONTENT_URI
-                        addDebugMessage("SMS: URI = $smsUri")
                         val projection = arrayOf(
                             Telephony.Sms._ID,
                             Telephony.Sms.ADDRESS,
@@ -346,51 +351,81 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             null
                         }
 
-                        addDebugMessage("SMS: Cursor obtained, is null: ${cursor == null}")
-                        val transactions = mutableListOf<Transaction>()
+                        val smsDataList = mutableListOf<Triple<String, String, Long>>()
                         cursor?.use {
                             addDebugMessage("SMS: Cursor count = ${it.count}")
                             val addressIndex = it.getColumnIndex(Telephony.Sms.ADDRESS)
                             val bodyIndex = it.getColumnIndex(Telephony.Sms.BODY)
                             val dateIndex = it.getColumnIndex(Telephony.Sms.DATE)
-                            addDebugMessage("SMS: Column indices - addr:$addressIndex, body:$bodyIndex, date:$dateIndex")
 
                             if (addressIndex < 0 || bodyIndex < 0 || dateIndex < 0) {
                                 addDebugMessage("SMS ERROR: Invalid column indices")
                                 return@use
                             }
 
-                            var smsCount = 0
                             while (it.moveToNext()) {
-                                smsCount++
                                 try {
                                     val address = it.getString(addressIndex) ?: continue
                                     val body = it.getString(bodyIndex) ?: continue
                                     val date = it.getLong(dateIndex)
-
-                                    smsParser.parseTransactionSms(address, body, date)?.let { tx ->
-                                        transactions.add(tx)
-                                    }
+                                    smsDataList.add(Triple(address, body, date))
                                 } catch (e: Exception) {
-                                    addDebugMessage("SMS ERROR: Parse error at $smsCount - ${e.message}")
+                                    // Skip this SMS
                                 }
                             }
-                            addDebugMessage("SMS: Processed $smsCount SMS, found ${transactions.size} transactions")
                         }
-                        transactions
+                        smsDataList
                     }
-
-                    addDebugMessage("SMS: Parsed ${parsedTransactions.size} transactions total")
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(appContext, "Step 3: Found ${parsedTransactions.size} transactions", Toast.LENGTH_SHORT).show()
-                    }
-                    if (parsedTransactions.isNotEmpty()) {
-                        repository.insertTransactions(parsedTransactions)
-                        loadAnalytics()
-                        _scanResult.value = "Found ${parsedTransactions.size} transaction SMS messages"
-                        addDebugMessage("SMS SUCCESS: Saved ${parsedTransactions.size} transactions")
+                    
+                    addDebugMessage("SMS: Read ${allSmsData.size} SMS messages")
+                    
+                    // Process in batches
+                    val batchSize = 50
+                    val batches = allSmsData.chunked(batchSize)
+                    var totalTransactions = 0
+                    
+                    for ((index, batch) in batches.withIndex()) {
+                        addDebugMessage("SMS: Processing batch ${index + 1}/${batches.size}")
                         withContext(Dispatchers.Main) {
-                            Toast.makeText(appContext, "SUCCESS: Saved ${parsedTransactions.size} transactions!", Toast.LENGTH_LONG).show()
+                            Toast.makeText(appContext, "Processing batch ${index + 1}/${batches.size}...", Toast.LENGTH_SHORT).show()
+                        }
+                        
+                        val parsedTransactions = withContext(Dispatchers.IO) {
+                            batch.mapNotNull { (address, body, date) ->
+                                try {
+                                    smsParser.parseTransactionSms(address, body, date)
+                                } catch (e: Exception) {
+                                    null
+                                }
+                            }
+                        }
+                        
+                        if (parsedTransactions.isNotEmpty()) {
+                            try {
+                                withContext(Dispatchers.IO) {
+                                    repository.insertTransactions(parsedTransactions)
+                                }
+                                totalTransactions += parsedTransactions.size
+                                addDebugMessage("SMS: Saved ${parsedTransactions.size} from batch ${index + 1}")
+                            } catch (e: Exception) {
+                                addDebugMessage("SMS ERROR: DB insert failed batch ${index + 1}: ${e.message}")
+                            }
+                        }
+                        
+                        // Delay between batches to prevent ANR
+                        if (index < batches.size - 1) {
+                            kotlinx.coroutines.delay(300)
+                        }
+                    }
+                    
+                    loadAnalytics()
+
+                    addDebugMessage("SMS: Total transactions saved: $totalTransactions")
+                    if (totalTransactions > 0) {
+                        _scanResult.value = "Found $totalTransactions transaction SMS messages"
+                        addDebugMessage("SMS SUCCESS: Saved $totalTransactions transactions")
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(appContext, "SUCCESS: Saved $totalTransactions transactions!", Toast.LENGTH_LONG).show()
                         }
                     } else {
                         _scanResult.value = "No transaction messages found"
@@ -621,6 +656,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     Toast.makeText(appContext, "Starting email scan...", Toast.LENGTH_SHORT).show()
                 }
                 
+                // Add delay to let UI update
+                kotlinx.coroutines.delay(1000)
+                
                 addDebugMessage("EMAIL SCAN: Checking authentication")
                 val isAuth = try {
                     gmailReader.isAuthenticated()
@@ -642,12 +680,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 
                 addDebugMessage("EMAIL SCAN: Auth OK, calling Gmail API...")
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(appContext, "Calling Gmail API...", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(appContext, "Fetching emails (batch 1)...", Toast.LENGTH_SHORT).show()
                 }
+                
+                // Process emails in smaller batches to prevent ANR
+                val batchSize = 10
+                val maxEmails = 30
+                var totalTransactions = 0
+                var totalEmails = 0
                 
                 val emails = try {
                     withContext(Dispatchers.IO) {
-                        gmailReader.readTransactionEmails(50)
+                        gmailReader.readTransactionEmails(maxEmails)
                     }
                 } catch (e: Exception) {
                     addDebugMessage("EMAIL SCAN CRASH: ${e.javaClass.simpleName}: ${e.message}")
@@ -659,51 +703,56 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     _isGmailScanning.value = false
                     return@launch
                 }
-                addDebugMessage("EMAIL SCAN: Got ${emails.size} emails")
                 
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(appContext, "Found ${emails.size} emails, parsing...", Toast.LENGTH_SHORT).show()
-                }
+                totalEmails = emails.size
+                addDebugMessage("EMAIL SCAN: Got ${emails.size} emails, processing in batches of $batchSize")
                 
-                addDebugMessage("EMAIL SCAN: Parsing emails for transactions")
-                val parsedTransactions = try {
-                    withContext(Dispatchers.IO) {
-                        emailParser.parseEmails(emails)
-                    }
-                } catch (e: Exception) {
-                    addDebugMessage("EMAIL SCAN ERROR: Parse failed: ${e.javaClass.simpleName}: ${e.message}")
+                // Process in batches
+                val batches = emails.chunked(batchSize)
+                for ((index, batch) in batches.withIndex()) {
+                    addDebugMessage("EMAIL SCAN: Processing batch ${index + 1}/${batches.size}")
                     withContext(Dispatchers.Main) {
-                        Toast.makeText(appContext, "Error parsing emails: ${e.message}", Toast.LENGTH_LONG).show()
+                        Toast.makeText(appContext, "Processing batch ${index + 1}/${batches.size}...", Toast.LENGTH_SHORT).show()
                     }
-                    _scanResult.value = "Error parsing emails: ${e.message}"
-                    _isLoading.value = false
-                    _isGmailScanning.value = false
-                    return@launch
-                }
-                addDebugMessage("EMAIL SCAN: Parsed ${parsedTransactions.size} transactions")
-                
-                if (parsedTransactions.isNotEmpty()) {
-                    try {
-                        repository.insertTransactions(parsedTransactions)
-                        loadAnalytics()
-                    } catch (e: Exception) {
-                        addDebugMessage("EMAIL SCAN ERROR: DB insert failed: ${e.javaClass.simpleName}: ${e.message}")
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(appContext, "Error saving transactions: ${e.message}", Toast.LENGTH_LONG).show()
+                    
+                    val parsedTransactions = try {
+                        withContext(Dispatchers.IO) {
+                            emailParser.parseEmails(batch)
                         }
-                        _scanResult.value = "Error saving transactions: ${e.message}"
-                        _isLoading.value = false
-                        _isGmailScanning.value = false
-                        return@launch
+                    } catch (e: Exception) {
+                        addDebugMessage("EMAIL SCAN ERROR: Parse failed batch ${index + 1}: ${e.message}")
+                        continue // Skip this batch and continue with next
                     }
-                    _scanResult.value = "Found ${parsedTransactions.size} transactions from ${emails.size} emails"
-                    addDebugMessage("EMAIL SCAN SUCCESS: Saved ${parsedTransactions.size} transactions")
+                    
+                    if (parsedTransactions.isNotEmpty()) {
+                        try {
+                            withContext(Dispatchers.IO) {
+                                repository.insertTransactions(parsedTransactions)
+                            }
+                            totalTransactions += parsedTransactions.size
+                            addDebugMessage("EMAIL SCAN: Saved ${parsedTransactions.size} from batch ${index + 1}")
+                        } catch (e: Exception) {
+                            addDebugMessage("EMAIL SCAN ERROR: DB insert failed batch ${index + 1}: ${e.message}")
+                        }
+                    }
+                    
+                    // Delay between batches to prevent ANR
+                    if (index < batches.size - 1) {
+                        kotlinx.coroutines.delay(500)
+                    }
+                }
+                
+                loadAnalytics()
+                
+                if (totalTransactions > 0) {
+                    _scanResult.value = "Found $totalTransactions transactions from $totalEmails emails"
+                    addDebugMessage("EMAIL SCAN SUCCESS: Saved $totalTransactions transactions total")
                     withContext(Dispatchers.Main) {
-                        Toast.makeText(appContext, "Found ${parsedTransactions.size} transactions!", Toast.LENGTH_LONG).show()
+                        Toast.makeText(appContext, "Found $totalTransactions transactions!", Toast.LENGTH_LONG).show()
                     }
                 } else {
                     _scanResult.value = "No transaction emails found"
-                    addDebugMessage("EMAIL SCAN: No transactions found in ${emails.size} emails")
+                    addDebugMessage("EMAIL SCAN: No transactions found in $totalEmails emails")
                     withContext(Dispatchers.Main) {
                         Toast.makeText(appContext, "No transaction emails found", Toast.LENGTH_SHORT).show()
                     }

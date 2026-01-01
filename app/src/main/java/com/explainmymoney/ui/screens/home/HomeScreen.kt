@@ -21,6 +21,8 @@ import androidx.core.content.ContextCompat
 import com.explainmymoney.domain.model.Transaction
 import com.explainmymoney.ui.components.DebugPanel
 import com.explainmymoney.ui.components.TransactionCard
+import java.text.SimpleDateFormat
+import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,6 +47,43 @@ fun HomeScreen(
 ) {
     val context = LocalContext.current
     var showPermissionDialog by remember { mutableStateOf(false) }
+    
+    // Month filter state
+    var selectedMonthIndex by remember { mutableStateOf(0) } // 0 = All, 1 = Current month, 2 = Last month, etc.
+    var showMonthDropdown by remember { mutableStateOf(false) }
+    
+    // Generate month options
+    val monthOptions = remember {
+        val calendar = Calendar.getInstance()
+        val dateFormat = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
+        val options = mutableListOf("All Transactions")
+        for (i in 0 until 6) {
+            options.add(dateFormat.format(calendar.time))
+            calendar.add(Calendar.MONTH, -1)
+        }
+        options
+    }
+    
+    // Filter transactions by selected month
+    val filteredTransactions = remember(transactions, selectedMonthIndex) {
+        if (selectedMonthIndex == 0) {
+            transactions
+        } else {
+            val calendar = Calendar.getInstance()
+            calendar.add(Calendar.MONTH, -(selectedMonthIndex - 1))
+            calendar.set(Calendar.DAY_OF_MONTH, 1)
+            calendar.set(Calendar.HOUR_OF_DAY, 0)
+            calendar.set(Calendar.MINUTE, 0)
+            calendar.set(Calendar.SECOND, 0)
+            calendar.set(Calendar.MILLISECOND, 0)
+            val startOfMonth = calendar.timeInMillis
+            
+            calendar.add(Calendar.MONTH, 1)
+            val endOfMonth = calendar.timeInMillis
+            
+            transactions.filter { it.timestamp in startOfMonth until endOfMonth }
+        }
+    }
     
     // Check SMS permission using ContextCompat - recheck on each recomposition
     val hasSmsPermission = remember(context) {
@@ -270,27 +309,75 @@ fun HomeScreen(
                 onClearMessages = onClearDebugMessages
             )
 
+            // Month Filter Row
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "RECENT TRANSACTIONS",
+                    text = "TRANSACTIONS",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Bold
                 )
+                
+                Box {
+                    FilterChip(
+                        onClick = { showMonthDropdown = true },
+                        label = { 
+                            Text(
+                                text = monthOptions.getOrElse(selectedMonthIndex) { "All" },
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        },
+                        selected = selectedMonthIndex > 0,
+                        trailingIcon = {
+                            Icon(
+                                Icons.Default.ArrowDropDown,
+                                contentDescription = "Select month",
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    )
+                    
+                    DropdownMenu(
+                        expanded = showMonthDropdown,
+                        onDismissRequest = { showMonthDropdown = false }
+                    ) {
+                        monthOptions.forEachIndexed { index, month ->
+                            DropdownMenuItem(
+                                text = { Text(month) },
+                                onClick = {
+                                    selectedMonthIndex = index
+                                    showMonthDropdown = false
+                                },
+                                leadingIcon = if (index == selectedMonthIndex) {
+                                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                                } else null
+                            )
+                        }
+                    }
+                }
+            }
+            
+            // Transaction count
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.End
+            ) {
                 Text(
-                    text = "${transactions.size} total",
+                    text = "${filteredTransactions.size} transactions" + if (selectedMonthIndex > 0) " (${transactions.size} total)" else "",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
-            if (transactions.isEmpty()) {
+            if (filteredTransactions.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -324,7 +411,7 @@ fun HomeScreen(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(transactions, key = { it.id }) { transaction ->
+                    items(filteredTransactions, key = { it.id }) { transaction ->
                         TransactionCard(
                             transaction = transaction,
                             currencySymbol = currencySymbol,
