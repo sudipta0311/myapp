@@ -561,27 +561,47 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         addDebugMessage("EMAIL: handleGmailSignInResult() called, account=${account?.email ?: "null"}")
         val appContext = getApplication<Application>().applicationContext
         viewModelScope.launch {
-            withContext(Dispatchers.Main) {
-                Toast.makeText(appContext, "Email: Processing sign-in result...", Toast.LENGTH_SHORT).show()
-            }
-            addDebugMessage("EMAIL: Calling gmailReader.handleSignInResult")
-            val success = gmailReader.handleSignInResult(account)
-            addDebugMessage("EMAIL: handleSignInResult returned success=$success")
-            if (success && account != null) {
-                addDebugMessage("EMAIL: Updating state - connected=true, email=${account.email}")
-                _isGmailConnected.value = true
-                userSettingsDao.updateGmailStatus(true, account.email)
-                addDebugMessage("EMAIL SUCCESS: State updated successfully")
+            try {
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(appContext, "SUCCESS: Connected to ${account.email}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(appContext, "Email: Processing sign-in result...", Toast.LENGTH_SHORT).show()
                 }
-                // Auto-scan emails after successful permission grant
-                addDebugMessage("EMAIL: Starting auto-scan after permission granted")
-                scanGmailEmails()
-            } else {
-                addDebugMessage("EMAIL ERROR: Failed - success=$success, account=${account?.email}")
+                addDebugMessage("EMAIL: Calling gmailReader.handleSignInResult")
+                val success = try {
+                    withContext(Dispatchers.IO) {
+                        gmailReader.handleSignInResult(account)
+                    }
+                } catch (e: Exception) {
+                    addDebugMessage("EMAIL ERROR: handleSignInResult exception: ${e.javaClass.simpleName}: ${e.message}")
+                    false
+                }
+                addDebugMessage("EMAIL: handleSignInResult returned success=$success")
+                if (success && account != null) {
+                    addDebugMessage("EMAIL: Updating state - connected=true, email=${account.email}")
+                    _isGmailConnected.value = true
+                    try {
+                        userSettingsDao.updateGmailStatus(true, account.email)
+                    } catch (e: Exception) {
+                        addDebugMessage("EMAIL ERROR: DB update failed: ${e.message}")
+                    }
+                    addDebugMessage("EMAIL SUCCESS: State updated successfully")
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(appContext, "SUCCESS: Connected to ${account.email}", Toast.LENGTH_LONG).show()
+                    }
+                    // Auto-scan emails after successful permission grant
+                    addDebugMessage("EMAIL: Starting auto-scan after permission granted")
+                    // Small delay to ensure Gmail service is ready
+                    kotlinx.coroutines.delay(500)
+                    scanGmailEmails()
+                } else {
+                    addDebugMessage("EMAIL ERROR: Failed - success=$success, account=${account?.email}")
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(appContext, "ERROR: Email sign-in failed (account=${account?.email}, success=$success)", Toast.LENGTH_LONG).show()
+                    }
+                }
+            } catch (e: Exception) {
+                addDebugMessage("EMAIL ERROR: Unexpected error in handleGmailSignInResult: ${e.javaClass.simpleName}: ${e.message}")
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(appContext, "ERROR: Email sign-in failed (account=${account?.email}, success=$success)", Toast.LENGTH_LONG).show()
+                    Toast.makeText(appContext, "Error: ${e.message}", Toast.LENGTH_LONG).show()
                 }
             }
         }
