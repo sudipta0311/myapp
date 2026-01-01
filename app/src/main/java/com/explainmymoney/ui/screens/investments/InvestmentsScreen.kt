@@ -29,9 +29,46 @@ fun InvestmentsScreen(
     currencySymbol: String,
     modifier: Modifier = Modifier
 ) {
-    val totalInvested = investmentTransactions.sumOf { it.amount }
+    // Month filter state
+    var selectedMonthIndex by remember { mutableStateOf(0) }
+    var showMonthDropdown by remember { mutableStateOf(false) }
     
-    val investmentsByType = investmentTransactions.groupBy { it.investmentType ?: InvestmentType.OTHER }
+    // Generate month options
+    val monthOptions = remember {
+        val calendar = Calendar.getInstance()
+        val dateFormat = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
+        val options = mutableListOf("All Time")
+        for (i in 0 until 6) {
+            options.add(dateFormat.format(calendar.time))
+            calendar.add(Calendar.MONTH, -1)
+        }
+        options
+    }
+    
+    // Filter transactions by selected month
+    val filteredTransactions = remember(investmentTransactions, selectedMonthIndex) {
+        if (selectedMonthIndex == 0) {
+            investmentTransactions
+        } else {
+            val calendar = Calendar.getInstance()
+            calendar.add(Calendar.MONTH, -(selectedMonthIndex - 1))
+            calendar.set(Calendar.DAY_OF_MONTH, 1)
+            calendar.set(Calendar.HOUR_OF_DAY, 0)
+            calendar.set(Calendar.MINUTE, 0)
+            calendar.set(Calendar.SECOND, 0)
+            calendar.set(Calendar.MILLISECOND, 0)
+            val startOfMonth = calendar.timeInMillis
+            
+            calendar.add(Calendar.MONTH, 1)
+            val endOfMonth = calendar.timeInMillis
+            
+            investmentTransactions.filter { it.timestamp in startOfMonth until endOfMonth }
+        }
+    }
+    
+    val totalInvested = filteredTransactions.sumOf { it.amount }
+    
+    val investmentsByType = filteredTransactions.groupBy { it.investmentType ?: InvestmentType.OTHER }
         .mapValues { (_, txs) -> txs.sumOf { it.amount } }
 
     Scaffold(
@@ -90,10 +127,65 @@ fun InvestmentsScreen(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "${investmentTransactions.size} investment transactions tracked",
+                            text = "${filteredTransactions.size} investment transactions" + 
+                                if (selectedMonthIndex > 0) " (${investmentTransactions.size} total)" else " tracked",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
                         )
+                    }
+                }
+            }
+            
+            // Month Filter
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "FILTER BY PERIOD",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Bold
+                    )
+                    
+                    Box {
+                        FilterChip(
+                            onClick = { showMonthDropdown = true },
+                            label = { 
+                                Text(
+                                    text = monthOptions.getOrElse(selectedMonthIndex) { "All Time" },
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            },
+                            selected = selectedMonthIndex > 0,
+                            trailingIcon = {
+                                Icon(
+                                    Icons.Default.ArrowDropDown,
+                                    contentDescription = "Select period",
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        )
+                        
+                        DropdownMenu(
+                            expanded = showMonthDropdown,
+                            onDismissRequest = { showMonthDropdown = false }
+                        ) {
+                            monthOptions.forEachIndexed { index, month ->
+                                DropdownMenuItem(
+                                    text = { Text(month) },
+                                    onClick = {
+                                        selectedMonthIndex = index
+                                        showMonthDropdown = false
+                                    },
+                                    leadingIcon = if (index == selectedMonthIndex) {
+                                        { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                                    } else null
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -145,24 +237,24 @@ fun InvestmentsScreen(
                         type = type,
                         amount = amount,
                         total = totalInvested,
-                        count = investmentTransactions.count { it.investmentType == type },
+                        count = filteredTransactions.count { it.investmentType == type },
                         currencySymbol = currencySymbol
                     )
                 }
             }
 
-            if (investmentTransactions.isNotEmpty()) {
+            if (filteredTransactions.isNotEmpty()) {
                 item {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "RECENT INVESTMENTS",
+                        text = if (selectedMonthIndex > 0) "INVESTMENTS THIS PERIOD" else "RECENT INVESTMENTS",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Bold
                     )
                 }
 
-                items(investmentTransactions.take(10)) { investment ->
+                items(filteredTransactions.sortedByDescending { it.timestamp }.take(20)) { investment ->
                     InvestmentRow(investment = investment, currencySymbol = currencySymbol)
                 }
             }

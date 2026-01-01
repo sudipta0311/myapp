@@ -5,9 +5,12 @@ import com.explainmymoney.domain.model.Transaction
 import com.explainmymoney.domain.model.TransactionCategory
 import com.explainmymoney.domain.model.TransactionSource
 import com.explainmymoney.domain.model.TransactionType
+import com.explainmymoney.domain.model.InvestmentType
 import java.util.regex.Pattern
 
 class EmailParser {
+    
+    private val investmentClassifier = InvestmentClassifier()
     
     private val amountPatterns = listOf(
         Pattern.compile("(?:Rs\\.?|INR|₹)\\s*([\\d,]+\\.?\\d*)", Pattern.CASE_INSENSITIVE),
@@ -47,7 +50,7 @@ class EmailParser {
         
         val type = determineTransactionType(content)
         val merchant = extractMerchant(content, email.from)
-        val category = categorizeTransaction(content, merchant)
+        val (category, investmentType) = categorizeTransaction(content, merchant)
         
         val summary = generateSummary(type, amount, merchant, category)
         
@@ -57,6 +60,7 @@ class EmailParser {
             amount = amount,
             type = type,
             category = category,
+            investmentType = investmentType,
             merchant = merchant,
             summary = summary,
             timestamp = email.date
@@ -122,37 +126,39 @@ class EmailParser {
             .take(30)
     }
     
-    private fun categorizeTransaction(content: String, merchant: String?): TransactionCategory {
+    private fun categorizeTransaction(content: String, merchant: String?): Pair<TransactionCategory, InvestmentType?> {
         val searchText = "$content ${merchant ?: ""}".lowercase()
+        
+        // First, check for investment using the classifier
+        val investmentResult = investmentClassifier.classify(content)
+        if (investmentResult.isInvestment) {
+            return TransactionCategory.INVESTMENT to investmentResult.investmentType
+        }
         
         return when {
             containsAny(searchText, listOf("food", "restaurant", "zomato", "swiggy", "uber eats", "domino", 
                 "pizza", "burger", "cafe", "coffee", "tea", "breakfast", "lunch", "dinner", "meal")) -> 
-                TransactionCategory.FOOD
+                TransactionCategory.FOOD to null
             
             containsAny(searchText, listOf("emi", "loan", "housing", "mortgage", "home loan", "property")) -> 
-                TransactionCategory.EMI_HOME_LOAN
+                TransactionCategory.EMI_HOME_LOAN to null
             
             containsAny(searchText, listOf("car loan", "vehicle loan", "auto loan", "car emi")) -> 
-                TransactionCategory.EMI_CAR_LOAN
+                TransactionCategory.EMI_CAR_LOAN to null
             
             containsAny(searchText, listOf("electricity", "water bill", "gas bill", "utility", "broadband", 
                 "internet", "mobile recharge", "phone bill", "dth", "airtel", "jio", "vodafone", "bsnl")) -> 
-                TransactionCategory.UTILITIES
+                TransactionCategory.UTILITIES to null
             
             containsAny(searchText, listOf("netflix", "prime", "hotstar", "spotify", "movie", "cinema", 
                 "entertainment", "gaming", "playstation", "xbox", "steam", "concert", "theatre")) -> 
-                TransactionCategory.ENTERTAINMENT
+                TransactionCategory.ENTERTAINMENT to null
             
             containsAny(searchText, listOf("amazon", "flipkart", "myntra", "ajio", "shopping", "purchase", 
                 "order", "mart", "mall", "store", "retail", "nykaa", "meesho")) -> 
-                TransactionCategory.SHOPPING
+                TransactionCategory.SHOPPING to null
             
-            containsAny(searchText, listOf("mutual fund", "sip", "investment", "stocks", "shares", 
-                "zerodha", "groww", "upstox", "ppf", "nps", "fd", "fixed deposit", "dividend")) -> 
-                TransactionCategory.INVESTMENT
-            
-            else -> TransactionCategory.OTHER
+            else -> TransactionCategory.OTHER to null
         }
     }
     

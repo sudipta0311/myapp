@@ -4,6 +4,8 @@ import com.explainmymoney.domain.model.*
 import java.util.regex.Pattern
 
 class SmsParser {
+    
+    private val investmentClassifier = InvestmentClassifier()
 
     fun parseTransactionSms(sender: String, body: String, timestamp: Long): Transaction? {
         if (!isTransactionSms(sender, body)) return null
@@ -177,16 +179,14 @@ class SmsParser {
 
     private fun categorizeTransaction(body: String, merchant: String?): Pair<TransactionCategory, InvestmentType?> {
         val combined = "${body.lowercase()} ${merchant?.lowercase() ?: ""}"
+        
+        // First, check for investment using the classifier
+        val investmentResult = investmentClassifier.classify(body)
+        if (investmentResult.isInvestment) {
+            return TransactionCategory.INVESTMENT to investmentResult.investmentType
+        }
 
         return when {
-            combined.matches(Regex(".*(sip|systematic investment|mutual fund|groww|zerodha|upstox|kuvera).*")) ->
-                TransactionCategory.INVESTMENT to InvestmentType.SIP
-            combined.matches(Regex(".*(ppf|public provident).*")) ->
-                TransactionCategory.INVESTMENT to InvestmentType.PPF
-            combined.matches(Regex(".*(nps|national pension).*")) ->
-                TransactionCategory.INVESTMENT to InvestmentType.NPS
-            combined.matches(Regex(".*(stock|share|equity|trading).*")) ->
-                TransactionCategory.INVESTMENT to InvestmentType.STOCKS
             combined.matches(Regex(".*(zomato|swiggy|food|restaurant|cafe|pizza|burger|domino|mcdonald|kfc|starbucks|dunkin).*")) ->
                 TransactionCategory.FOOD to null
             combined.matches(Regex(".*(netflix|prime|hotstar|spotify|movie|entertainment|pvr|inox|bookmyshow).*")) ->
