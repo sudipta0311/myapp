@@ -39,7 +39,24 @@ import android.widget.Toast
 
 private const val TAG = "MainViewModel"
 
+enum class ScanState {
+    NOT_STARTED,
+    IN_PROGRESS,
+    COMPLETED,
+    FAILED
+}
+
 class MainViewModel(application: Application) : AndroidViewModel(application) {
+    
+    // Scan state to track scanning progress
+    private val _scanState = MutableStateFlow(ScanState.NOT_STARTED)
+    val scanState: StateFlow<ScanState> = _scanState.asStateFlow()
+    
+    private val _scanMessage = MutableStateFlow("")
+    val scanMessage: StateFlow<String> = _scanMessage.asStateFlow()
+    
+    // Flag to prevent duplicate scans
+    private var hasStartedInitialScan = false
     
     // Safe toast helper to prevent crashes during navigation
     private fun showSafeToast(message: String, duration: Int = Toast.LENGTH_SHORT) {
@@ -309,30 +326,38 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
     
     fun scanSmsMessages() {
-        try {
-            addDebugMessage("SMS: scanSmsMessages() called")
-            val appContext = getApplication<Application>().applicationContext
-            
-            // Check permission first
-            val hasPermission = android.content.pm.PackageManager.PERMISSION_GRANTED == 
-                androidx.core.content.ContextCompat.checkSelfPermission(appContext, android.Manifest.permission.READ_SMS)
-            addDebugMessage("SMS: Permission check = $hasPermission")
-            
-            if (!hasPermission) {
-                addDebugMessage("SMS ERROR: No SMS permission")
-                _scanResult.value = "SMS permission required"
-                showSafeToast("SMS permission not granted", Toast.LENGTH_LONG)
-                return
-            }
-            
-            viewModelScope.launch {
-                addDebugMessage("SMS: Starting coroutine")
-                showSafeToast("Starting SMS scan...")
+        // Prevent duplicate scans
+        if (_scanState.value == ScanState.IN_PROGRESS) {
+            addDebugMessage("SMS: Scan already in progress, skipping")
+            return
+        }
+        
+        val appContext = getApplication<Application>().applicationContext
+        
+        // Check permission first
+        val hasPermission = android.content.pm.PackageManager.PERMISSION_GRANTED == 
+            androidx.core.content.ContextCompat.checkSelfPermission(appContext, android.Manifest.permission.READ_SMS)
+        addDebugMessage("SMS: Permission check = $hasPermission")
+        
+        if (!hasPermission) {
+            addDebugMessage("SMS ERROR: No SMS permission")
+            _scanResult.value = "SMS permission required"
+            _scanState.value = ScanState.FAILED
+            _scanMessage.value = "SMS permission not granted"
+            showSafeToast("SMS permission not granted", Toast.LENGTH_LONG)
+            return
+        }
+        
+        viewModelScope.launch {
+            try {
+                addDebugMessage("SMS: Starting coroutine on IO dispatcher")
+                _scanState.value = ScanState.IN_PROGRESS
+                _scanMessage.value = "Scanning SMS messages..."
                 _isLoading.value = true
-                _scanResult.value = "Scanning SMS messages..."
+                showSafeToast("Starting SMS scan...")
                 
                 // Add delay to let UI update
-                kotlinx.coroutines.delay(1000)
+                kotlinx.coroutines.delay(500)
                 
                 try {
                     addDebugMessage("SMS: Got app context")
@@ -438,24 +463,32 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     addDebugMessage("SMS: Total transactions saved: $totalTransactions")
                     if (totalTransactions > 0) {
                         _scanResult.value = "Found $totalTransactions transaction SMS messages"
+                        _scanMessage.value = "Found $totalTransactions SMS transactions"
                         addDebugMessage("SMS SUCCESS: Saved $totalTransactions transactions")
                         showSafeToast("SUCCESS: Saved $totalTransactions transactions!", Toast.LENGTH_LONG)
                     } else {
                         _scanResult.value = "No transaction messages found"
+                        _scanMessage.value = "SMS scan complete - no transactions found"
                         addDebugMessage("SMS: No transaction SMS found")
                         showSafeToast("No transaction SMS found")
                     }
+                    _scanState.value = ScanState.COMPLETED
                 } catch (e: Exception) {
                     addDebugMessage("SMS ERROR: Coroutine exception - ${e.javaClass.simpleName}: ${e.message}")
                     _scanResult.value = "Error scanning SMS: ${e.message ?: "Unknown error"}"
+                    _scanMessage.value = "Error: ${e.message ?: "Unknown error"}"
+                    _scanState.value = ScanState.FAILED
                     showSafeToast("ERROR: ${e.message}", Toast.LENGTH_LONG)
                 }
                 _isLoading.value = false
                 addDebugMessage("SMS: Completed")
+            } catch (e: Exception) {
+                addDebugMessage("SMS ERROR: Outer exception - ${e.javaClass.simpleName}: ${e.message}")
+                _scanResult.value = "Error: ${e.message}"
+                _scanMessage.value = "Error: ${e.message ?: "Unknown error"}"
+                _scanState.value = ScanState.FAILED
+                _isLoading.value = false
             }
-        } catch (e: Exception) {
-            addDebugMessage("SMS ERROR: Outer exception - ${e.javaClass.simpleName}: ${e.message}")
-            _scanResult.value = "Error: ${e.message}"
         }
     }
     
@@ -644,23 +677,32 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
     
     fun scanGmailEmails() {
+        // Prevent duplicate scans
+        if (_scanState.value == ScanState.IN_PROGRESS) {
+            addDebugMessage("EMAIL SCAN: Scan already in progress, skipping")
+            return
+        }
+        
         addDebugMessage("EMAIL SCAN: Starting email scan...")
-        val appContext = getApplication<Application>().applicationContext
         
         viewModelScope.launch {
             try {
                 addDebugMessage("EMAIL SCAN: Setting loading state")
+                _scanState.value = ScanState.IN_PROGRESS
+                _scanMessage.value = "Scanning emails..."
                 _isGmailScanning.value = true
                 _isLoading.value = true
                 
                 showSafeToast("Starting email scan...")
                 
                 // Add delay to let UI update
-                kotlinx.coroutines.delay(1000)
+                kotlinx.coroutines.delay(500)
                 
                 addDebugMessage("EMAIL SCAN: Checking authentication")
                 val isAuth = try {
-                    gmailReader.isAuthenticated()
+                    withContext(Dispatchers.IO) {
+                        gmailReader.isAuthenticated()
+                    }
                 } catch (e: Exception) {
                     addDebugMessage("EMAIL SCAN ERROR: Auth check failed: ${e.message}")
                     false
@@ -669,6 +711,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 if (!isAuth) {
                     addDebugMessage("EMAIL SCAN ERROR: Not authenticated")
                     _scanResult.value = "Please connect Gmail first"
+                    _scanMessage.value = "Gmail not connected"
+                    _scanState.value = ScanState.FAILED
                     showSafeToast("Please connect Gmail first", Toast.LENGTH_LONG)
                     _isLoading.value = false
                     _isGmailScanning.value = false
@@ -740,16 +784,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 
                 if (totalTransactions > 0) {
                     _scanResult.value = "Found $totalTransactions transactions from $totalEmails emails"
+                    _scanMessage.value = "Found $totalTransactions email transactions"
+                    _scanState.value = ScanState.COMPLETED
                     addDebugMessage("EMAIL SCAN SUCCESS: Saved $totalTransactions transactions total")
                     showSafeToast("Found $totalTransactions transactions!", Toast.LENGTH_LONG)
                 } else {
                     _scanResult.value = "No transaction emails found"
+                    _scanMessage.value = "Email scan complete - no transactions found"
+                    _scanState.value = ScanState.COMPLETED
                     addDebugMessage("EMAIL SCAN: No transactions found in $totalEmails emails")
                     showSafeToast("No transaction emails found")
                 }
             } catch (e: Exception) {
                 addDebugMessage("EMAIL SCAN ERROR: ${e.javaClass.simpleName}: ${e.message}")
                 _scanResult.value = "Error scanning emails: ${e.message ?: "Unknown error"}"
+                _scanMessage.value = "Error: ${e.message ?: "Unknown error"}"
+                _scanState.value = ScanState.FAILED
                 showSafeToast("Error: ${e.message}", Toast.LENGTH_LONG)
             } finally {
                 _isLoading.value = false

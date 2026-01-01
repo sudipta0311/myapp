@@ -73,6 +73,8 @@ fun MainNavigation(
     val totalIncomeThisYear by viewModel.totalIncomeThisYear.collectAsState()
     val totalInvestedThisYear by viewModel.totalInvestedThisYear.collectAsState()
     val debugMessages by viewModel.debugMessages.collectAsState()
+    val scanState by viewModel.scanState.collectAsState()
+    val scanMessage by viewModel.scanMessage.collectAsState()
 
     // Gmail sign-in launcher for HomeScreen email permission (using OAuth)
     val gmailSignInLauncher = rememberLauncherForActivityResult(
@@ -129,6 +131,8 @@ fun MainNavigation(
                     scanResult = scanResult,
                     currencySymbol = viewModel.getCurrencySymbol(),
                     userName = if (userSettings?.isLoggedIn == true) userSettings?.displayName else null,
+                    scanState = scanState,
+                    scanMessage = scanMessage,
                     onScanSms = { viewModel.scanSmsMessages() },
                     onImportFile = { uri -> viewModel.parseStatementFile(uri) },
                     onDeleteTransaction = { id -> viewModel.deleteTransaction(id) },

@@ -21,6 +21,7 @@ import androidx.core.content.ContextCompat
 import com.explainmymoney.domain.model.Transaction
 import com.explainmymoney.ui.components.DebugPanel
 import com.explainmymoney.ui.components.TransactionCard
+import com.explainmymoney.ui.viewmodel.ScanState
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -32,6 +33,8 @@ fun HomeScreen(
     scanResult: String?,
     currencySymbol: String,
     userName: String? = null,
+    scanState: ScanState = ScanState.NOT_STARTED,
+    scanMessage: String = "",
     onScanSms: () -> Unit,
     onImportFile: (Uri) -> Unit,
     onDeleteTransaction: (Long) -> Unit,
@@ -168,11 +171,70 @@ fun HomeScreen(
         },
         modifier = modifier
     ) { innerPadding ->
+        // Show scanning screen when scan is in progress
+        if (scanState == ScanState.IN_PROGRESS) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(64.dp),
+                        strokeWidth = 4.dp
+                    )
+                    Text(
+                        text = scanMessage.ifEmpty { "Scanning SMS and emails..." },
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Please wait, this may take a moment",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            return@Scaffold
+        }
+        
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
+            // Show error message if scan failed
+            if (scanState == ScanState.FAILED && scanMessage.isNotEmpty()) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Error,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = scanMessage,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
+                }
+            }
+            
             // Action buttons row
             Row(
                 modifier = Modifier
