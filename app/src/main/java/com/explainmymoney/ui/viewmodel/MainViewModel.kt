@@ -40,6 +40,22 @@ import android.widget.Toast
 private const val TAG = "MainViewModel"
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
+    
+    // Safe toast helper to prevent crashes during navigation
+    private fun showSafeToast(message: String, duration: Int = Toast.LENGTH_SHORT) {
+        try {
+            val appContext = getApplication<Application>().applicationContext
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                try {
+                    Toast.makeText(appContext, message, duration).show()
+                } catch (e: Exception) {
+                    Log.w(TAG, "Toast failed: ${e.message}")
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Toast helper failed: ${e.message}")
+        }
+    }
     private val database = AppDatabase.getDatabase(application)
     private val transactionDao = database.transactionDao()
     private val userSettingsDao = database.userSettingsDao()
@@ -305,15 +321,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (!hasPermission) {
                 addDebugMessage("SMS ERROR: No SMS permission")
                 _scanResult.value = "SMS permission required"
-                Toast.makeText(appContext, "SMS permission not granted", Toast.LENGTH_LONG).show()
+                showSafeToast("SMS permission not granted", Toast.LENGTH_LONG)
                 return
             }
             
             viewModelScope.launch {
                 addDebugMessage("SMS: Starting coroutine")
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(appContext, "Starting SMS scan...", Toast.LENGTH_SHORT).show()
-                }
+                showSafeToast("Starting SMS scan...")
                 _isLoading.value = true
                 _scanResult.value = "Scanning SMS messages..."
                 
@@ -386,9 +400,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     
                     for ((index, batch) in batches.withIndex()) {
                         addDebugMessage("SMS: Processing batch ${index + 1}/${batches.size}")
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(appContext, "Processing batch ${index + 1}/${batches.size}...", Toast.LENGTH_SHORT).show()
-                        }
+                        showSafeToast("Processing SMS batch ${index + 1}/${batches.size}...")
                         
                         val parsedTransactions = withContext(Dispatchers.IO) {
                             batch.mapNotNull { (address, body, date) ->
@@ -427,22 +439,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     if (totalTransactions > 0) {
                         _scanResult.value = "Found $totalTransactions transaction SMS messages"
                         addDebugMessage("SMS SUCCESS: Saved $totalTransactions transactions")
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(appContext, "SUCCESS: Saved $totalTransactions transactions!", Toast.LENGTH_LONG).show()
-                        }
+                        showSafeToast("SUCCESS: Saved $totalTransactions transactions!", Toast.LENGTH_LONG)
                     } else {
                         _scanResult.value = "No transaction messages found"
                         addDebugMessage("SMS: No transaction SMS found")
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(appContext, "No transaction SMS found", Toast.LENGTH_SHORT).show()
-                        }
+                        showSafeToast("No transaction SMS found")
                     }
                 } catch (e: Exception) {
                     addDebugMessage("SMS ERROR: Coroutine exception - ${e.javaClass.simpleName}: ${e.message}")
                     _scanResult.value = "Error scanning SMS: ${e.message ?: "Unknown error"}"
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(appContext, "ERROR: ${e.message}", Toast.LENGTH_LONG).show()
-                    }
+                    showSafeToast("ERROR: ${e.message}", Toast.LENGTH_LONG)
                 }
                 _isLoading.value = false
                 addDebugMessage("SMS: Completed")
@@ -600,9 +606,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val appContext = getApplication<Application>().applicationContext
         viewModelScope.launch {
             try {
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(appContext, "Email: Processing sign-in result...", Toast.LENGTH_SHORT).show()
-                }
+                showSafeToast("Email: Processing sign-in result...")
                 addDebugMessage("EMAIL: Calling gmailReader.handleSignInResult")
                 val success = try {
                     withContext(Dispatchers.IO) {
@@ -622,9 +626,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         addDebugMessage("EMAIL ERROR: DB update failed: ${e.message}")
                     }
                     addDebugMessage("EMAIL SUCCESS: State updated successfully")
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(appContext, "SUCCESS: Connected to ${account.email}", Toast.LENGTH_LONG).show()
-                    }
+                    showSafeToast("SUCCESS: Connected to ${account.email}", Toast.LENGTH_LONG)
                     // Auto-scan emails after successful permission grant
                     addDebugMessage("EMAIL: Starting auto-scan after permission granted")
                     // Small delay to ensure Gmail service is ready
@@ -632,15 +634,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     scanGmailEmails()
                 } else {
                     addDebugMessage("EMAIL ERROR: Failed - success=$success, account=${account?.email}")
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(appContext, "ERROR: Email sign-in failed (account=${account?.email}, success=$success)", Toast.LENGTH_LONG).show()
-                    }
+                    showSafeToast("ERROR: Email sign-in failed", Toast.LENGTH_LONG)
                 }
             } catch (e: Exception) {
                 addDebugMessage("EMAIL ERROR: Unexpected error in handleGmailSignInResult: ${e.javaClass.simpleName}: ${e.message}")
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(appContext, "Error: ${e.message}", Toast.LENGTH_LONG).show()
-                }
+                showSafeToast("Error: ${e.message}", Toast.LENGTH_LONG)
             }
         }
     }
@@ -655,9 +653,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _isGmailScanning.value = true
                 _isLoading.value = true
                 
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(appContext, "Starting email scan...", Toast.LENGTH_SHORT).show()
-                }
+                showSafeToast("Starting email scan...")
                 
                 // Add delay to let UI update
                 kotlinx.coroutines.delay(1000)
@@ -673,18 +669,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 if (!isAuth) {
                     addDebugMessage("EMAIL SCAN ERROR: Not authenticated")
                     _scanResult.value = "Please connect Gmail first"
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(appContext, "Please connect Gmail first", Toast.LENGTH_LONG).show()
-                    }
+                    showSafeToast("Please connect Gmail first", Toast.LENGTH_LONG)
                     _isLoading.value = false
                     _isGmailScanning.value = false
                     return@launch
                 }
                 
                 addDebugMessage("EMAIL SCAN: Auth OK, calling Gmail API...")
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(appContext, "Fetching emails (batch 1)...", Toast.LENGTH_SHORT).show()
-                }
+                showSafeToast("Fetching emails...")
                 
                 // Process emails in smaller batches to prevent ANR - run in background
                 val batchSize = 5  // Smaller batches for stability
@@ -698,9 +690,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 } catch (e: Exception) {
                     addDebugMessage("EMAIL SCAN CRASH: ${e.javaClass.simpleName}: ${e.message}")
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(appContext, "Gmail API error: ${e.message}", Toast.LENGTH_LONG).show()
-                    }
+                    showSafeToast("Gmail API error: ${e.message}", Toast.LENGTH_LONG)
                     _scanResult.value = "Error reading emails: ${e.message}"
                     _isLoading.value = false
                     _isGmailScanning.value = false
@@ -714,9 +704,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val batches = emails.chunked(batchSize)
                 for ((index, batch) in batches.withIndex()) {
                     addDebugMessage("EMAIL SCAN: Processing batch ${index + 1}/${batches.size}")
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(appContext, "Processing batch ${index + 1}/${batches.size}...", Toast.LENGTH_SHORT).show()
-                    }
+                    showSafeToast("Processing email batch ${index + 1}/${batches.size}...")
                     
                     val parsedTransactions = try {
                         withContext(Dispatchers.IO) {
@@ -753,22 +741,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 if (totalTransactions > 0) {
                     _scanResult.value = "Found $totalTransactions transactions from $totalEmails emails"
                     addDebugMessage("EMAIL SCAN SUCCESS: Saved $totalTransactions transactions total")
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(appContext, "Found $totalTransactions transactions!", Toast.LENGTH_LONG).show()
-                    }
+                    showSafeToast("Found $totalTransactions transactions!", Toast.LENGTH_LONG)
                 } else {
                     _scanResult.value = "No transaction emails found"
                     addDebugMessage("EMAIL SCAN: No transactions found in $totalEmails emails")
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(appContext, "No transaction emails found", Toast.LENGTH_SHORT).show()
-                    }
+                    showSafeToast("No transaction emails found")
                 }
             } catch (e: Exception) {
                 addDebugMessage("EMAIL SCAN ERROR: ${e.javaClass.simpleName}: ${e.message}")
                 _scanResult.value = "Error scanning emails: ${e.message ?: "Unknown error"}"
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(appContext, "Error: ${e.message}", Toast.LENGTH_LONG).show()
-                }
+                showSafeToast("Error: ${e.message}", Toast.LENGTH_LONG)
             } finally {
                 _isLoading.value = false
                 _isGmailScanning.value = false
