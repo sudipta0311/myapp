@@ -379,8 +379,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     
                     addDebugMessage("SMS: Read ${allSmsData.size} SMS messages")
                     
-                    // Process in batches
-                    val batchSize = 50
+                    // Process in batches - smaller for background stability
+                    val batchSize = 25
                     val batches = allSmsData.chunked(batchSize)
                     var totalTransactions = 0
                     
@@ -412,9 +412,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             }
                         }
                         
-                        // Delay between batches to prevent ANR
+                        // Update scan result progressively
+                        _scanResult.value = "Scanning SMS... saved $totalTransactions transactions so far"
+                        
+                        // Longer delay between batches for background stability
                         if (index < batches.size - 1) {
-                            kotlinx.coroutines.delay(300)
+                            kotlinx.coroutines.delay(800)
                         }
                     }
                     
@@ -683,9 +686,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     Toast.makeText(appContext, "Fetching emails (batch 1)...", Toast.LENGTH_SHORT).show()
                 }
                 
-                // Process emails in smaller batches to prevent ANR
-                val batchSize = 10
-                val maxEmails = 30
+                // Process emails in smaller batches to prevent ANR - run in background
+                val batchSize = 5  // Smaller batches for stability
+                val maxEmails = 50
                 var totalTransactions = 0
                 var totalEmails = 0
                 
@@ -736,9 +739,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     }
                     
-                    // Delay between batches to prevent ANR
+                    // Update scan result progressively
+                    _scanResult.value = "Scanning... saved $totalTransactions transactions so far"
+                    
+                    // Longer delay between batches for background stability
                     if (index < batches.size - 1) {
-                        kotlinx.coroutines.delay(500)
+                        kotlinx.coroutines.delay(1000)
                     }
                 }
                 
