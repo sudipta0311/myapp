@@ -575,6 +575,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 withContext(Dispatchers.Main) {
                     Toast.makeText(appContext, "SUCCESS: Connected to ${account.email}", Toast.LENGTH_LONG).show()
                 }
+                // Auto-scan emails after successful permission grant
+                addDebugMessage("EMAIL: Starting auto-scan after permission granted")
+                scanGmailEmails()
             } else {
                 addDebugMessage("EMAIL ERROR: Failed - success=$success, account=${account?.email}")
                 withContext(Dispatchers.Main) {
